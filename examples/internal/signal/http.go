@@ -9,7 +9,7 @@ import (
 )
 
 // HTTPSDPServer starts a HTTP Server that consumes SDPs
-func HTTPSDPServer() chan string {
+func HTTPSDPServer() (chan string, chan string) {
 	port := flag.Int("port", 8080, "http server port")
 	flag.Parse()
 
@@ -20,6 +20,13 @@ func HTTPSDPServer() chan string {
 		sdpChan <- string(body)
 	})
 
+	iceChan := make(chan string)
+	http.HandleFunc("/ice", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := ioutil.ReadAll(r.Body)
+		fmt.Fprintf(w, "done")
+		iceChan <- string(body)
+	})
+
 	go func() {
 		err := http.ListenAndServe(":"+strconv.Itoa(*port), nil)
 		if err != nil {
@@ -27,5 +34,5 @@ func HTTPSDPServer() chan string {
 		}
 	}()
 
-	return sdpChan
+	return sdpChan, iceChan
 }

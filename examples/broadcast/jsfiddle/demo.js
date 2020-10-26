@@ -19,18 +19,28 @@ window.createSession = isPublisher => {
   }
 
   if (isPublisher) {
-    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-      .then(stream => {
-        pc.addStream(document.getElementById('video1').srcObject = stream)
-        pc.createOffer()
-          .then(d => pc.setLocalDescription(d))
-          .catch(log)
-      }).catch(log)
+    let localVideo = document.getElementById('video1')
+    localVideo.play();
+    pc.addStream(document.getElementById('video1').captureStream());
+
+    pc.createOffer()
+        .then(
+            d => {
+              const regex = /m=video 9 UDP\/TLS\/RTP\/SAVPF.*$/;
+              d.sdp = d.sdp.replace(regex, 'm=video 9 UDP/TLS/RTP/SAVPF 127');
+              pc.setLocalDescription(d);
+            })
+        .catch(log)
+
   } else {
     pc.addTransceiver('video')
     pc.createOffer()
-      .then(d => pc.setLocalDescription(d))
-      .catch(log)
+        .then(d => {
+          const regex = /m=video 9 UDP\/TLS\/RTP\/SAVPF.*$/;
+          d.sdp = d.sdp.replace(regex, 'm=video 9 UDP/TLS/RTP/SAVPF 127');
+          pc.setLocalDescription(d);
+        })
+        .catch(log)
 
     pc.ontrack = function (event) {
       var el = document.getElementById('video1')

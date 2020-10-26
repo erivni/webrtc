@@ -21,6 +21,9 @@ const (
 )
 
 func main() {
+
+	sdpChan, _ := signal.HTTPSDPServer()
+
 	// Assert that we have an audio or video file
 	_, err := os.Stat(videoFileName)
 	haveVideoFile := !os.IsNotExist(err)
@@ -29,12 +32,12 @@ func main() {
 	haveAudioFile := !os.IsNotExist(err)
 
 	if !haveAudioFile && !haveVideoFile {
-		panic("Could not find `" + audioFileName + "` or `" + videoFileName + "`")
+		//panic("Could not find `" + audioFileName + "` or `" + videoFileName + "`")
 	}
 
 	// Wait for the offer to be pasted
 	offer := webrtc.SessionDescription{}
-	signal.Decode(signal.MustReadStdin(), &offer)
+	signal.Decode(<-sdpChan, &offer)
 
 	// We make our own mediaEngine so we can place the sender's codecs in it.  This because we must use the
 	// dynamic media type from the sender in our answer. This is not required if we are the offerer

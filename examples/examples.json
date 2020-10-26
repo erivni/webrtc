@@ -40,6 +40,11 @@
 		"link": "play-from-disk",
 		"description": "The play-from-disk example demonstrates how to send video to your browser from a file saved to disk.",
 		"type": "browser"
+	},{
+		"title": "Play H264 from Disk",
+		"link": "play-h264-from-disk",
+		"description": "play-h264-from-disk demonstrates how to send video to your browser from a file saved to disk.",
+		"type": "browser"
 	},
 	{
 		"title": "Play from Disk Renegotation",
