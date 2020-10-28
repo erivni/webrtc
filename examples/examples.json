@@ -45,6 +45,11 @@
 		"link": "play-h264-from-disk",
 		"description": "play-h264-from-disk demonstrates how to send video to your browser from a file saved to disk.",
 		"type": "browser"
+	},{
+		"title": "Play H264 from Gstreamer",
+		"link": "play-h264-from-gstreamer",
+		"description": "play-h264-from-gstreamer demonstrates how to send video to your browser from a file saved to disk.",
+		"type": "browser"
 	},
 	{
 		"title": "Play from Disk Renegotation",
