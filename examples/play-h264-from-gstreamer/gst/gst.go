@@ -8,7 +8,6 @@ package gst
 */
 import "C"
 import (
-	"fmt"
 	"io"
 	"sync"
 	"unsafe"
@@ -33,7 +32,14 @@ var pipelinesLock sync.Mutex
 
 // CreatePipeline creates a GStreamer Pipeline
 func CreatePipeline(containerPath string, audioTrack, videoTrack *webrtc.Track) *Pipeline {
-	pipelineStr := fmt.Sprintf("filesrc location=\"%s\" ! decodebin name=demux ! queue ! x264enc bframes=0 speed-preset=veryfast key-int-max=60 ! video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio", containerPath)
+	// from file
+	//pipelineStr := fmt.Sprintf("filesrc location=\"%s\" ! decodebin name=demux ! queue ! x264enc bframes=0 speed-preset=veryfast key-int-max=60 ! video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio", containerPath)
+
+	// hls reendcode with framerate
+	//pipelineStr := "souphttpsrc location=http://devimages.apple.com/iphone/samples/bipbop/gear4/prog_index.m3u8 ! hlsdemux ! decodebin name=demux ! queue ! videorate ! video/x-raw,framerate=25/1 ! x264enc bframes=0 speed-preset=veryfast key-int-max=60  ! video/x-h264,stream-format=byte-stream ! appsink name=video"
+
+	// hls no reencocde
+	pipelineStr := "souphttpsrc location=http://34.250.45.79:8080/360p_no_bframe.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio"
 
 	pipelineStrUnsafe := C.CString(pipelineStr)
 	defer C.free(unsafe.Pointer(pipelineStrUnsafe))
@@ -81,7 +87,7 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 	var samples uint32
 
 	if isVideo == 1 {
-		samples = uint32(videoClockRate * (float32(duration) / 1000000000))
+		samples = 90000 / uint32(25) //uint32(videoClockRate * (float32(duration) / 1000000000))
 		track = pipeline.videoTrack
 	} else {
 		samples = uint32(audioClockRate * (float32(duration) / 1000000000))

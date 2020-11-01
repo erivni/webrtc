@@ -48,20 +48,3 @@ window.startSession = () => {
     alert(e)
   }
 }
-
-window.addCandidate = async () => {
-  let candidate = document.getElementById('remoteCandidate').value
-  if (candidate === '') {
-    return alert('Remote Candidate must not be empty')
-  }
-
-  try {
-    let ice = new RTCIceCandidate(JSON.parse(atob(candidate)));
-
-    await pc.addIceCandidate(ice);
-
-    console.log("candidate added successfully")
-  } catch (e) {
-    alert(e)
-  }
-}
