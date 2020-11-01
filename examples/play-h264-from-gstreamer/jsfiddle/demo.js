@@ -12,6 +12,10 @@ let log = msg => {
 }
 
 pc.ontrack = function (event) {
+  if (event.track.kind === 'audio') {
+    return
+  }
+
   var el = document.createElement(event.track.kind)
   el.srcObject = event.streams[0]
   el.autoplay = true
@@ -23,18 +27,15 @@ pc.ontrack = function (event) {
 pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
 pc.onicecandidate = event => {
   if (event.candidate === null) {
-    //document.getElementById('localSessionDescription').value = btoa(JSON.stringify(pc.localDescription))
-  } else {
-    console.log(btoa(JSON.stringify(event.candidate)));
+    document.getElementById('localSessionDescription').value = btoa(JSON.stringify(pc.localDescription))
   }
 }
 
-// Offer to receive 1 audio, and 2 video tracks
+// Offer to receive 1 audio, and 1 video track
 pc.addTransceiver('video', {'direction': 'sendrecv'})
-pc.createOffer().then(d => {
-  pc.setLocalDescription(d);
-  document.getElementById('localSessionDescription').value = btoa(JSON.stringify(pc.localDescription))
-}).catch(log)
+pc.addTransceiver('audio', {'direction': 'sendrecv'})
+
+pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log)
 
 window.startSession = () => {
   let sd = document.getElementById('remoteSessionDescription').value
