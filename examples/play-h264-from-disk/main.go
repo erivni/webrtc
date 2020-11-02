@@ -32,7 +32,7 @@ func main() {
 		//panic("Could not find `" + audioFileName + "` or `" + videoFileName + "`")
 	}
 
-	sdpChan, iceChan := signal.HTTPSDPServer()
+	sdpChan := signal.HTTPSDPServer()
 
 	// Everything below is the Pion WebRTC API, thanks for using it ❤️.
 	offer := webrtc.SessionDescription{}
@@ -198,12 +198,12 @@ func main() {
 	// Output the answer in base64 so we can paste it in browser
 	fmt.Println(signal.Encode(*peerConnection.LocalDescription()))
 
-	ice := webrtc.ICECandidateInit{}
-	signal.Decode(<-iceChan, &ice)
-
-	if iceErr := peerConnection.AddICECandidate(ice); iceErr != nil {
-		panic(iceErr)
-	}
+	//ice := webrtc.ICECandidateInit{}
+	//signal.Decode(<-iceChan, &ice)
+	//
+	//if iceErr := peerConnection.AddICECandidate(ice); iceErr != nil {
+	//	panic(iceErr)
+	//}
 
 	// Block forever
 	select {}

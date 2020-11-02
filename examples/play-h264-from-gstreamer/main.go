@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	sdpChan, _ := signal.HTTPSDPServer()
+	sdpChan := signal.HTTPSDPServer()
 
 	// Everything below is the Pion WebRTC API, thanks for using it ❤️.
 	offer := webrtc.SessionDescription{}
