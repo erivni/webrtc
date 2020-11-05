@@ -57,12 +57,12 @@ func main() {
 	}
 
 
-	pipelineStr := fmt.Sprintf("souphttpsrc location=http://34.250.45.79:8080/360p_no_bframe.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
+	pipelineStr := fmt.Sprintf("souphttpsrc location=http://34.250.45.79:8080/360p_no_bframe_timer_abr.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
 
 	pipeline := &gst.Pipeline{}
 	pipeline = gst.CreatePipeline(pipelineStr, audioTrack, videoTrack, "abr")
 
-	pipelineStrUI := fmt.Sprintf("souphttpsrc location=http://34.250.45.79:8080/360p_no_bframe_timer.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
+	pipelineStrUI := fmt.Sprintf("souphttpsrc location=http://34.250.45.79:8080/360p_no_bframe_timer_ui.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
 
 	pipelineUI := &gst.Pipeline{}
 	pipelineUI = gst.CreatePipeline(pipelineStrUI, audioTrack, videoTrack, "ui")
@@ -117,9 +117,12 @@ func main() {
 
 
 	http.HandleFunc("/switch", func(w http.ResponseWriter, r *http.Request) {
+
 		body, _ := ioutil.ReadAll(r.Body)
-		fmt.Fprintf(w, "done")
 		gst.GLOBAL_STATE = string(body);
+
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		fmt.Fprintf(w, "done")
 		//if (string(body) == "ui"){
 		//	pipeline.Pause()
 		//	pipelineUI.Play()
@@ -132,6 +135,7 @@ func main() {
 	http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
 		stats := peerConnection.GetStats()
 		statsStr,_ := json.Marshal(stats)
+		w.Header().Set("content-type", "application/json")
 		fmt.Fprintf(w, string(statsStr))
 	})
 

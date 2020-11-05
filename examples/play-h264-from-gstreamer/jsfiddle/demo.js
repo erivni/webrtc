@@ -49,3 +49,28 @@ window.startSession = () => {
     alert(e)
   }
 }
+
+window.startUI = async () => {
+  try {
+    fetch("http://localhost:8011/switch", {
+      method: 'post',
+      body: "ui"
+    })
+    log("switched to ui")
+  } catch (e) {
+    alert(e)
+  }
+}
+
+window.startABR = async () => {
+  try {
+    fetch("http://localhost:8011/switch", {
+      method: 'post',
+      body: "abr"
+    })
+    log("switched to abr")
+
+  } catch (e) {
+    alert(e)
+  }
+}

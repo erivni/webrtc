@@ -49,7 +49,7 @@ GstFlowReturn gstreamer_send_new_sample_handler(GstElement *object, gpointer use
   GstBuffer *buffer = NULL;
   gpointer copy = NULL;
   gsize copy_size = 0;
-  int *isVideo = (int *) user_data;
+  int isVideo = ((int *) user_data)[0];
   int isAbr = ((int *) user_data)[1];
 
   g_signal_emit_by_name (object, "pull-sample", &sample);
@@ -57,7 +57,7 @@ GstFlowReturn gstreamer_send_new_sample_handler(GstElement *object, gpointer use
     buffer = gst_sample_get_buffer(sample);
     if (buffer) {
       gst_buffer_extract_dup(buffer, 0, gst_buffer_get_size(buffer), &copy, &copy_size);
-      goHandlePipelineBuffer(copy, copy_size, GST_BUFFER_DURATION(buffer), *isVideo, isAbr);
+      goHandlePipelineBuffer(copy, copy_size, GST_BUFFER_DURATION(buffer), isVideo, isAbr);
     }
     gst_sample_unref (sample);
   }

@@ -93,6 +93,7 @@ const (
 
 //export goHandlePipelineBuffer
 func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.int, isVideo C.int, isAbr C.int) {
+
 	if (isVideo == 1 && (isAbr == 1 && GLOBAL_STATE == "ui" || isAbr == 0 && GLOBAL_STATE == "abr")) ||
 		(isVideo == 0 && (isAbr == 1 && GLOBAL_STATE == "ui" || isAbr == 0 && GLOBAL_STATE == "abr")){
 		return
