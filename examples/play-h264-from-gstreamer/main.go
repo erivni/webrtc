@@ -77,7 +77,7 @@ func main() {
 
 	peerConnection.OnICECandidate(func(candidate *webrtc.ICECandidate) {
 		if candidate != nil {
-			fmt.Println(signal.Encode(candidate.ToJSON()))
+			//fmt.Println(signal.Encode(candidate.ToJSON()))
 		}
 	})
 
