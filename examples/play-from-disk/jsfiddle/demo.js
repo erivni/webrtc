@@ -17,6 +17,11 @@ pc.ontrack = function (event) {
   el.autoplay = true
   el.controls = true
 
+  el.addEventListener('resize', () => {
+    log(`Remote video size changed to ${el.videoWidth}x${el.videoHeight}`);
+  });
+
+
   document.getElementById('remoteVideos').appendChild(el)
 }
 

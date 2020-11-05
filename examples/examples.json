@@ -56,6 +56,11 @@
 		"link": "play-from-disk",
 		"description": "The play-from-disk-renegotation example is an extension of the play-from-disk example, but demonstrates how you can add/remove video tracks from an already negotiated PeerConnection.",
 		"type": "browser"
+	},{
+		"title": "Play from Html",
+		"link": "play-from-html",
+		"description": "The play-from-html example is a full webrtc which sends video track to another html PeerConnection. no pion.",
+		"type": "browser"
 	},
 	{
 		"title": "Insertable Streams",

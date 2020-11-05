@@ -6,10 +6,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-extern void goHandlePipelineBuffer(void *buffer, int bufferLen, int samples, int isVideo);
+extern void goHandlePipelineBuffer(void *buffer, int bufferLen, int samples, int isVideo, int isAbr);
 
 GstElement *gstreamer_send_create_pipeline(char *pipeline);
-void gstreamer_send_start_pipeline(GstElement *pipeline);
+void gstreamer_send_start_pipeline(GstElement *pipeline, int isAbr);
 
 void gstreamer_send_play_pipeline(GstElement *pipeline);
 void gstreamer_send_pause_pipeline(GstElement *pipeline);

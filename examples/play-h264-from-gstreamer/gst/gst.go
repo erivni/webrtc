@@ -25,13 +25,16 @@ type Pipeline struct {
 	Pipeline   *C.GstElement
 	audioTrack *webrtc.Track
 	videoTrack *webrtc.Track
+	Type string
 }
+
+var GLOBAL_STATE="abr"
 
 var pipeline = &Pipeline{}
 var pipelinesLock sync.Mutex
 
 // CreatePipeline creates a GStreamer Pipeline
-func CreatePipeline(containerPath string, audioTrack, videoTrack *webrtc.Track) *Pipeline {
+func CreatePipeline(pipelineStr string, audioTrack, videoTrack *webrtc.Track, pipelineType string) *Pipeline {
 	// from file
 	//pipelineStr := fmt.Sprintf("filesrc location=\"%s\" ! decodebin name=demux ! queue ! x264enc bframes=0 speed-preset=veryfast key-int-max=60 ! video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio", containerPath)
 
@@ -39,7 +42,7 @@ func CreatePipeline(containerPath string, audioTrack, videoTrack *webrtc.Track) 
 	//pipelineStr := "souphttpsrc location=http://devimages.apple.com/iphone/samples/bipbop/gear4/prog_index.m3u8 ! hlsdemux ! decodebin name=demux ! queue ! videorate ! video/x-raw,framerate=25/1 ! x264enc bframes=0 speed-preset=veryfast key-int-max=60  ! video/x-h264,stream-format=byte-stream ! appsink name=video"
 
 	// hls no reencocde
-	pipelineStr := "souphttpsrc location=http://34.250.45.79:8080/360p_no_bframe.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio"
+	//pipelineStr := fmt.Sprintf("souphttpsrc location=\"%s\" ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio", containerPath)
 
 	pipelineStrUnsafe := C.CString(pipelineStr)
 	defer C.free(unsafe.Pointer(pipelineStrUnsafe))
@@ -50,6 +53,7 @@ func CreatePipeline(containerPath string, audioTrack, videoTrack *webrtc.Track) 
 		Pipeline:   C.gstreamer_send_create_pipeline(pipelineStrUnsafe),
 		audioTrack: audioTrack,
 		videoTrack: videoTrack,
+		Type: pipelineType,
 	}
 	return pipeline
 }
@@ -58,7 +62,13 @@ func CreatePipeline(containerPath string, audioTrack, videoTrack *webrtc.Track) 
 func (p *Pipeline) Start() {
 	// This will signal to goHandlePipelineBuffer
 	// and provide a method for cancelling sends.
-	C.gstreamer_send_start_pipeline(p.Pipeline)
+
+	isAbr := C.int(1)
+	if (p.Type == "ui") {
+		isAbr = C.int(0)
+	}
+
+	C.gstreamer_send_start_pipeline(p.Pipeline, isAbr)
 }
 
 // Play sets the pipeline to PLAYING
@@ -82,12 +92,17 @@ const (
 )
 
 //export goHandlePipelineBuffer
-func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.int, isVideo C.int) {
+func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.int, isVideo C.int, isAbr C.int) {
+	if (isVideo == 1 && (isAbr == 1 && GLOBAL_STATE == "ui" || isAbr == 0 && GLOBAL_STATE == "abr")) ||
+		(isVideo == 0 && (isAbr == 1 && GLOBAL_STATE == "ui" || isAbr == 0 && GLOBAL_STATE == "abr")){
+		return
+	}
+
 	var track *webrtc.Track
 	var samples uint32
 
 	if isVideo == 1 {
-		samples = 90000 / uint32(25) //uint32(videoClockRate * (float32(duration) / 1000000000))
+		samples = videoClockRate / uint32(25) //uint32(videoClockRate * (float32(duration) / 1000000000))
 		track = pipeline.videoTrack
 	} else {
 		samples = uint32(audioClockRate * (float32(duration) / 1000000000))

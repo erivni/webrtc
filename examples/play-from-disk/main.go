@@ -22,7 +22,7 @@ const (
 
 func main() {
 
-	sdpChan, _ := signal.HTTPSDPServer()
+	sdpChan := signal.HTTPSDPServer()
 
 	// Assert that we have an audio or video file
 	_, err := os.Stat(videoFileName)

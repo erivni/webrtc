@@ -2,15 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/pion/randutil"
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/examples/internal/signal"
 	"github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/gst"
+	"io/ioutil"
+	"net/http"
 )
 
 func main() {
-	sdpChan, _ := signal.HTTPSDPServer()
+	sdpChan := signal.HTTPSDPServer()
 
 	// Everything below is the Pion WebRTC API, thanks for using it ❤️.
 	offer := webrtc.SessionDescription{}
@@ -37,8 +40,6 @@ func main() {
 	}
 	iceConnectedCtx, iceConnectedCtxCancel := context.WithCancel(context.Background())
 
-	containerPath := "./spiderman.mp4";
-
 	videoTrack, addTrackErr := peerConnection.NewTrack(getPayloadType(mediaEngine, webrtc.RTPCodecTypeVideo, "H264"), randutil.NewMathRandomGenerator().Uint32(), "video", "pion")
 	if addTrackErr != nil {
 		panic(addTrackErr)
@@ -55,8 +56,16 @@ func main() {
 		panic(addTrackErr)
 	}
 
+
+	pipelineStr := fmt.Sprintf("souphttpsrc location=http://34.250.45.79:8080/360p_no_bframe.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
+
 	pipeline := &gst.Pipeline{}
-	pipeline = gst.CreatePipeline(containerPath, audioTrack, videoTrack)
+	pipeline = gst.CreatePipeline(pipelineStr, audioTrack, videoTrack, "abr")
+
+	pipelineStrUI := fmt.Sprintf("souphttpsrc location=http://34.250.45.79:8080/360p_no_bframe_timer.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
+
+	pipelineUI := &gst.Pipeline{}
+	pipelineUI = gst.CreatePipeline(pipelineStrUI, audioTrack, videoTrack, "ui")
 
 	// Set the handler for ICE connection state
 	// This will notify you when the peer has connected/disconnected
@@ -103,7 +112,28 @@ func main() {
 	<-iceConnectedCtx.Done()
 
 	pipeline.Start()
+	pipelineUI.Start()
+	//pipelineUI.Pause()
 
+
+	http.HandleFunc("/switch", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := ioutil.ReadAll(r.Body)
+		fmt.Fprintf(w, "done")
+		gst.GLOBAL_STATE = string(body);
+		//if (string(body) == "ui"){
+		//	pipeline.Pause()
+		//	pipelineUI.Play()
+		//} else {
+		//	pipelineUI.Pause()
+		//	pipeline.Play()
+		//}
+	})
+
+	http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
+		stats := peerConnection.GetStats()
+		statsStr,_ := json.Marshal(stats)
+		fmt.Fprintf(w, string(statsStr))
+	})
 
 	// Block forever
 	select {}
