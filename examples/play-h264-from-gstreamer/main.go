@@ -8,7 +8,6 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/examples/internal/signal"
 	"github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/gst"
-	"io/ioutil"
 	"net/http"
 )
 
@@ -82,6 +81,21 @@ func main() {
 		}
 	})
 
+	peerConnection.OnDataChannel(func(d *webrtc.DataChannel) {
+		fmt.Printf("New DataChannel %s %d\n", d.Label(), d.ID())
+
+		// Register channel opening handling
+		d.OnOpen(func() {
+			fmt.Printf("Data channel '%s'-'%d' open.\n", d.Label(), d.ID())
+		})
+
+		// Register text message handling
+		d.OnMessage(func(msg webrtc.DataChannelMessage) {
+			fmt.Printf("Message from DataChannel '%s': '%s'\n", d.Label(), string(msg.Data))
+			gst.GLOBAL_STATE = string(msg.Data);
+		})
+	})
+
 	// Set the remote SessionDescription
 	if err = peerConnection.SetRemoteDescription(offer); err != nil {
 		panic(err)
@@ -114,23 +128,6 @@ func main() {
 	pipeline.Start()
 	pipelineUI.Start()
 	//pipelineUI.Pause()
-
-
-	http.HandleFunc("/switch", func(w http.ResponseWriter, r *http.Request) {
-
-		body, _ := ioutil.ReadAll(r.Body)
-		gst.GLOBAL_STATE = string(body);
-
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		fmt.Fprintf(w, "done")
-		//if (string(body) == "ui"){
-		//	pipeline.Pause()
-		//	pipelineUI.Play()
-		//} else {
-		//	pipelineUI.Pause()
-		//	pipeline.Play()
-		//}
-	})
 
 	http.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
 		stats := peerConnection.GetStats()
