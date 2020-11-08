@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/pion/webrtc/v3/pkg/media/oggreader"
 	"io"
 	"os"
 	"time"
@@ -12,7 +13,6 @@ import (
 	"github.com/pion/webrtc/v3/examples/internal/signal"
 	"github.com/pion/webrtc/v3/pkg/media"
 	"github.com/pion/webrtc/v3/pkg/media/h264reader"
-	"github.com/pion/webrtc/v3/pkg/media/oggreader"
 )
 
 const (
@@ -21,6 +21,9 @@ const (
 )
 
 func main() {
+
+	sdpChan := signal.HTTPSDPServer()
+
 	// Assert that we have an audio or video file
 	_, err := os.Stat(videoFileName)
 	haveVideoFile := !os.IsNotExist(err)
@@ -32,9 +35,7 @@ func main() {
 		//panic("Could not find `" + audioFileName + "` or `" + videoFileName + "`")
 	}
 
-	sdpChan := signal.HTTPSDPServer()
-
-	// Everything below is the Pion WebRTC API, thanks for using it ❤️.
+	// Wait for the offer to be pasted
 	offer := webrtc.SessionDescription{}
 	signal.Decode(<-sdpChan, &offer)
 
@@ -70,34 +71,44 @@ func main() {
 		}
 
 		go func() {
-			var nalStream = make(chan h264reader.Nal)
-			fps := uint32(25)
+			file, h264Err := os.Open(videoFileName)
+			if h264Err != nil {
+				panic(h264Err)
+			}
 
-		    <-iceConnectedCtx.Done()
+			h264, h264Err := h264reader.NewReader(file)
+			if h264Err != nil {
+				panic(h264Err)
+			}
 
-			// to generate a h264 video sample please use sample.sh
-			go h264reader.LoadFile(videoFileName, nalStream, fps)
+			// Wait for connection established
+			<-iceConnectedCtx.Done()
 
+			spsAndPpsCache := []byte{}
 			for {
-				nal := <-nalStream
-				Samples := uint32(0)
-				if nal.UnitType == h264reader.CodedSliceNonIdr || nal.UnitType == h264reader.CodedSliceIdr {
-					Samples = 90000 / fps
+				nal, h264Err := h264.NextNAL()
+				if h264Err == io.EOF {
+					fmt.Printf("All video frames parsed and sent")
+					os.Exit(0)
+				}
+				if h264Err != nil {
+					panic(h264Err)
 				}
 
-				// send only Idr, NonIdr, SPS, PPS
-				if nal.UnitType == h264reader.CodedSliceNonIdr || nal.UnitType == h264reader.CodedSliceIdr ||
-					nal.UnitType == h264reader.SPS || nal.UnitType == h264reader.PPS {
-					frame := nal.Data
-					// prepend 0x00_00_00_01 prefix if it doesn't not exist
-					if !((frame[0] == 0x00 && frame[1] == 0x00 && frame[2] == 0x01) ||
-						(frame[0] == 0x00 && frame[1] == 0x00 && frame[2] == 0x00 && frame[3] == 0x01)) {
-						frame = append([]byte{0x00, 0x00, 0x00, 0x01}, frame...)
-					}
-					fmt.Println("nal: ", h264reader.NalUnitTypeStr(nal.UnitType))
-					if ivfErr := videoTrack.WriteSample(media.Sample{Data: frame, Samples: Samples}); ivfErr != nil {
-						panic(ivfErr)
-					}
+				time.Sleep(time.Millisecond * 33)
+
+				nal.Data = append([]byte{0x00, 0x00, 0x00, 0x01}, nal.Data...)
+
+				if nal.UnitType == h264reader.NalUnitTypeSPS || nal.UnitType == h264reader.NalUnitTypePPS {
+					spsAndPpsCache = append(spsAndPpsCache, nal.Data...)
+					continue
+				} else if nal.UnitType == h264reader.NalUnitTypeCodedSliceIdr {
+					nal.Data = append(spsAndPpsCache, nal.Data...)
+					spsAndPpsCache = []byte{}
+				}
+
+				if h264Err = videoTrack.WriteSample(media.Sample{Data: nal.Data, Samples: 90000}); h264Err != nil {
+					panic(h264Err)
 				}
 			}
 		}()
@@ -162,12 +173,6 @@ func main() {
 		fmt.Printf("Connection State has changed %s \n", connectionState.String())
 		if connectionState == webrtc.ICEConnectionStateConnected {
 			iceConnectedCtxCancel()
-		}
-	})
-
-	peerConnection.OnICECandidate(func(candidate *webrtc.ICECandidate) {
-		if candidate != nil {
-			fmt.Println(signal.Encode(candidate.ToJSON()))
 		}
 	})
 
