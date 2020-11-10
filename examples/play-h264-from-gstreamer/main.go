@@ -6,22 +6,29 @@ import (
 	"fmt"
 	"github.com/pion/randutil"
 	"github.com/pion/webrtc/v3"
-	"github.com/pion/webrtc/v3/examples/internal/signal"
 	"github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/gst"
+	signalling "github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/signallingclient"
 	"net/http"
 )
 
 func main() {
-	sdpChan := signal.HTTPSDPServer()
+	signallingClient := signalling.NewSignallingClient("http://34.250.45.79:57778")
 
 	// Everything below is the Pion WebRTC API, thanks for using it ❤️.
-	offer := webrtc.SessionDescription{}
-	signal.Decode(<-sdpChan, &offer)
+	connectionId, err := signallingClient.GetQueue()
+	if err != nil {
+		panic(err)
+	}
+
+	offer, err := signallingClient.GetOffer(connectionId)
+	if err != nil {
+		panic(err)
+	}
 
 	// We make our own mediaEngine so we can place the sender's codecs in it.  This because we must use the
 	// dynamic media type from the sender in our answer. This is not required if we are the offerer
 	mediaEngine := webrtc.MediaEngine{}
-	if err := mediaEngine.PopulateFromSDP(offer); err != nil {
+	if err := mediaEngine.PopulateFromSDP(*offer); err != nil {
 		panic(err)
 	}
 
@@ -55,7 +62,6 @@ func main() {
 		panic(addTrackErr)
 	}
 
-
 	pipelineStr := fmt.Sprintf("souphttpsrc location=http://34.250.45.79:8080/360p_no_bframe_timer_abr.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
 
 	pipeline := &gst.Pipeline{}
@@ -76,8 +82,11 @@ func main() {
 	})
 
 	peerConnection.OnICECandidate(func(candidate *webrtc.ICECandidate) {
-		if candidate != nil {
-			//fmt.Println(signal.Encode(candidate.ToJSON()))
+		if candidate == nil {
+			err = signallingClient.SendAnswer(connectionId, *peerConnection.LocalDescription())
+			if err != nil {
+				panic(err)
+			}
 		}
 	})
 
@@ -93,13 +102,13 @@ func main() {
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			fmt.Printf("Message from DataChannel '%s': '%s'\n", d.Label(), string(msg.Data))
 			if gst.GLOBAL_STATE != string(msg.Data) {
-				gst.GLOBAL_STATE = "switch_to_" + string(msg.Data)
+				gst.GLOBAL_STATE = "switch_to_" + string(msg.Data);
 			}
 		})
 	})
 
 	// Set the remote SessionDescription
-	if err = peerConnection.SetRemoteDescription(offer); err != nil {
+	if err = peerConnection.SetRemoteDescription(*offer); err != nil {
 		panic(err)
 	}
 
@@ -123,7 +132,7 @@ func main() {
 	<-gatherComplete
 
 	// Output the answer in base64 so we can paste it in browser
-	fmt.Println(signal.Encode(*peerConnection.LocalDescription()))
+	//fmt.Println(signal.Encode(*peerConnection.LocalDescription()))
 
 	<-iceConnectedCtx.Done()
 

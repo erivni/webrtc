@@ -1,4 +1,5 @@
 /* eslint-env browser */
+let signallingServer = "http://34.250.45.79:57778";
 let pc = new RTCPeerConnection({
   iceServers: [
     {
@@ -28,39 +29,30 @@ pc.ontrack = function (event) {
   document.getElementById('remoteVideos').appendChild(el)
 }
 pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
-pc.onicecandidate = event => {
+
+pc.onicecandidate = async event => {
   if (event.candidate === null) {
-    document.getElementById('localSessionDescription').value = btoa(JSON.stringify(pc.localDescription))
+    let offer = Object.assign({}, pc.localDescription.toJSON());
+    offer.deviceId = makeid(5);
+
+    let connectionId = await sendOffer(offer);
+    if (connectionId !== null) {
+      // print it out for debugging
+      //document.getElementById('localSessionDescription').value = JSON.stringify(offer)
+      getAnswer(connectionId);
+    }
   }
 }
+
+
 // Offer to receive 1 audio, and 1 video track
 pc.addTransceiver('video', {'direction': 'sendrecv'})
 pc.addTransceiver('audio', {'direction': 'sendrecv'})
 pc.createOffer().then(d => pc.setLocalDescription(d)).catch(log)
-window.startSession = () => {
-  let sd = document.getElementById('remoteSessionDescription').value
-  if (sd === '') {
-    return alert('Session Description must not be empty')
-  }
-  try {
-    pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(atob(sd))))
-  } catch (e) {
-    alert(e)
-  }
-}
+
 window.startUI = async () => {
   try {
-    let msg = {
-      type: "switch",
-      target: "ui"
-    }
     sendChannel.send("ui");
-    /*
-    fetch("http://localhost:8011/switch", {
-      method: 'post',
-      body: "ui"
-    })
-     */
     log("switched to ui")
   } catch (e) {
     alert(e)
@@ -68,19 +60,62 @@ window.startUI = async () => {
 }
 window.startABR = async () => {
   try {
-    let msg = {
-      type: "switch",
-      target: "abr"
-    }
     sendChannel.send("abr");
-    /*
-    fetch("http://localhost:8011/switch", {
-      method: 'post',
-      body: "abr"
-    })
-     */
     log("switched to abr")
   } catch (e) {
     alert(e)
   }
 }
+
+function makeid(length) {
+  var result           = '';
+  var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  var charactersLength = characters.length;
+  for ( var i = 0; i < length; i++ ) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+  }
+  return result;
+}
+async function sendOffer(offer) {
+  try {
+    // send offer to signalling server
+    let response =  await fetch(`${signallingServer}/connections`, {
+      method: 'post',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(offer)
+    })
+
+    console.log("posted an offer..");
+
+    let connection = await response.json();
+    return connection.connectionId;
+  } catch(e) {
+    alert(e);
+    return null;
+  }
+}
+async function getAnswer(connectionId) {
+  try{
+    console.log("trying to get answer..");
+
+    let response = await fetch(`${signallingServer}/connections/${connectionId}/answer`, {
+      method: 'get'
+    })
+
+    let body = await response.text();
+
+    if (response.ok && body != ""){
+      //document.getElementById('remoteSessionDescription').value = body
+      pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(body)))
+      return;
+    }
+
+    setTimeout(() => getAnswer(connectionId), 1000)
+
+  } catch (e) {
+    alert(e);
+  }
+}
+
