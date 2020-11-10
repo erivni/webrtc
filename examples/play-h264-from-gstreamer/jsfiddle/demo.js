@@ -24,11 +24,12 @@ pc.ontrack = function (event) {
   }
   var el = document.createElement(event.track.kind)
   el.srcObject = event.streams[0]
+  el.muted = true
   el.autoplay = true
   el.controls = true
   document.getElementById('remoteVideos').appendChild(el)
 }
-pc.oniceconnectionstatechange = e => log(pc.iceConnectionState)
+pc.oniceconnectionstatechange = e => log(pc.iceConnectionState);
 
 pc.onicecandidate = async event => {
   if (event.candidate === null) {
