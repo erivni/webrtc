@@ -80,7 +80,7 @@ function makeid(length) {
 async function sendOffer(offer) {
   try {
     // send offer to signalling server
-    let response =  await fetch(`${signallingServer}/connections`, {
+    let response =  await fetch(`${signallingServer}/signaling/1.0/connections`, {
       method: 'post',
       headers: {
         'Content-Type': 'application/json'
@@ -101,7 +101,7 @@ async function getAnswer(connectionId) {
   try{
     console.log("trying to get answer..");
 
-    let response = await fetch(`${signallingServer}/connections/${connectionId}/answer`, {
+    let response = await fetch(`${signallingServer}/signaling/1.0/connections/${connectionId}/answer`, {
       method: 'get'
     })
 
