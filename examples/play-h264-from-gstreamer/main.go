@@ -92,7 +92,9 @@ func main() {
 		// Register text message handling
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			fmt.Printf("Message from DataChannel '%s': '%s'\n", d.Label(), string(msg.Data))
-			gst.GLOBAL_STATE = string(msg.Data);
+			if gst.GLOBAL_STATE != string(msg.Data) {
+				gst.GLOBAL_STATE = "switch_to_" + string(msg.Data)
+			}
 		})
 	})
 
