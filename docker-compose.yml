@@ -1,0 +1,7 @@
+version: '2.2'
+services:
+  transcontainer:
+    build: .
+    ports:
+      - "50000-50002:50000-50002/udp"
+

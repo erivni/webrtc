@@ -32,8 +32,14 @@ func main() {
 		panic(err)
 	}
 
+	settingEngine := webrtc.SettingEngine{}
+	settingEngine.SetEphemeralUDPPortRange(50000, 50002)
+
 	// Create a new RTCPeerConnection
-	api := webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine))
+	var api = webrtc.NewAPI(
+		webrtc.WithMediaEngine(mediaEngine),
+		webrtc.WithSettingEngine(settingEngine),
+	)
 	peerConnection, err := api.NewPeerConnection(webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
