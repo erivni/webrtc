@@ -1,0 +1,10 @@
+FROM golang:1.15 as builder
+
+WORKDIR /home/src/webrtc
+
+COPY . .
+
+RUN go build -o ui -v ./examples && \
+    mv ./ui ./examples/
+
+CMD ["/bin/bash", "-c", "cd /home/src/webrtc/examples && ./ui --address 0.0.0.0:8080"]

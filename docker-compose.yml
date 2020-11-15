@@ -30,3 +30,15 @@ services:
           cpus: '1'
           memory: 256M
 
+  examples:
+    build:
+      context: .
+      dockerfile: Dockerfile-examples
+    ports:
+      - "9999:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
+
