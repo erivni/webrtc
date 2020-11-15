@@ -42,7 +42,7 @@ func Defer(tc *transcontainer.Lifecycle) {
 				"error": err,
 			}).Error("Defer(): caught a panic!")
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(10 * time.Second)
 
 		defer Defer(tc)
 		tc.Restart()

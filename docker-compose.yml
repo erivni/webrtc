@@ -4,14 +4,29 @@ services:
     build: .
     ports:
       - "50000-50002:50000-50002/udp"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
 
   transcontainer2:
     build: .
     ports:
       - "50003-50005:50000-50002/udp"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
 
   transcontainer3:
     build: .
     ports:
       - "50006-50008:50000-50002/udp"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
 
