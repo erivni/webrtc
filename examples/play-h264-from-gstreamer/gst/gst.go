@@ -28,10 +28,14 @@ type Pipeline struct {
 	Type string
 }
 
-var GLOBAL_STATE="abr"
+var GLOBAL_STATE="ui"
 
 var pipeline = &Pipeline{}
 var pipelinesLock sync.Mutex
+
+func ResetGlobalState(){
+	GLOBAL_STATE = "ui"
+}
 
 // CreatePipeline creates a GStreamer Pipeline
 func CreatePipeline(pipelineStr string, audioTrack, videoTrack *webrtc.Track, pipelineType string) *Pipeline {

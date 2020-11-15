@@ -1,7 +1,17 @@
 version: '2.2'
 services:
-  transcontainer:
+  transcontainer1:
     build: .
     ports:
       - "50000-50002:50000-50002/udp"
+
+  transcontainer2:
+    build: .
+    ports:
+      - "50003-50005:50000-50002/udp"
+
+  transcontainer3:
+    build: .
+    ports:
+      - "50006-50008:50000-50002/udp"
 

@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+const RETRY_INTERVAL = 5
 
 type SignallingClient struct{
 	Url string
@@ -43,8 +44,9 @@ func (signalingClient *SignallingClient) GetQueue() (string, error){
 			log.Fields{
 				"url": url,
 				"error": err.Error(),
-			}).Error("failed to get a free connection")
-		return "", err
+			}).Error("failed to get a free connection, will retry in ", RETRY_INTERVAL, "s.")
+		time.Sleep(RETRY_INTERVAL * time.Second)
+		return signalingClient.GetQueue()
 	}
 
 	if response.StatusCode != http.StatusOK {
@@ -52,8 +54,8 @@ func (signalingClient *SignallingClient) GetQueue() (string, error){
 			log.Fields{
 				"url": url,
 				"httpCode": response.StatusCode,
-			}).Warn("no waiting offers are available. waiting for 5s before retry..")
-		time.Sleep(5 * time.Second)
+			}).Warn("no waiting offers are available. will retry in ", RETRY_INTERVAL, "s.")
+		time.Sleep(RETRY_INTERVAL * time.Second)
 		return signalingClient.GetQueue()
 	}
 
