@@ -8,6 +8,7 @@ import (
 	signalling "github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/signallingclient"
 	"github.com/pion/webrtc/v3/pkg/rtpbuffer"
 	log "github.com/sirupsen/logrus"
+	"os"
 )
 
 type State uint8
@@ -197,6 +198,9 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 					"dataChannelId": d.ID(),
 					"dataChannelLabel": d.Label(),
 				}).Info("data channel is open.")
+
+			hostname, _ := os.Hostname()
+			d.SendText(fmt.Sprintf("connection opened with Transcontainer: %s", hostname))
 			})
 
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {

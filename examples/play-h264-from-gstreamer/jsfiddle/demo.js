@@ -17,7 +17,10 @@ const dataChannelOptions = {
 let sendChannel = pc.createDataChannel('hyperscale', dataChannelOptions);
 sendChannel.onclose = () => log('sendChannel has closed');
 sendChannel.onopen = () => log('sendChannel has opened');
-sendChannel.onmessage = e => log(`Message from DataChannel '${sendChannel.label}' payload '${e.data}'`);
+sendChannel.onmessage = e => {
+  console.log(`Message from DataChannel '${sendChannel.label}' payload '${e.data}'`)
+  log(`>> got message: ${e.data}`);
+}
 pc.ontrack = function (event) {
   if (event.track.kind === 'audio') {
     return
