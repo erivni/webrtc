@@ -99,8 +99,7 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 				"connectionId": tc.ConnectionId,
 				"error": err.Error(),
 			}).Warn("failed to get a valid offer..")
-		tc.Stop()
-		//panic(err)
+		panic(err)
 	}
 
 	settingEngine := webrtc.SettingEngine{}
@@ -162,7 +161,7 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 			connectionState == webrtc.ICEConnectionStateDisconnected {
 			// set state
 			tc.State = FAILED
-			tc.Stop()
+			tc.Restart()
 		}
 	})
 
@@ -322,7 +321,10 @@ func (tc *Lifecycle) Stop(){
 	tc = NewLifecycle(tc.SignalingClient)
 
 	gst.ResetGlobalState()
+}
 
+func (tc *Lifecycle) Restart(){
+	tc.Stop()
 	tc.Start()
 }
 
