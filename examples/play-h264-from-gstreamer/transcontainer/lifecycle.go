@@ -204,7 +204,7 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 				log.Fields{
 					"lifecycleState": tc.State,
 					"connectionId": tc.ConnectionId,
-					"dataChannelId": *d.ID(),
+					"dataChannelId": d.ID(),
 					"dataChannelLabel": d.Label(),
 				}).Info("got new message: ", string(msg.Data))
 
