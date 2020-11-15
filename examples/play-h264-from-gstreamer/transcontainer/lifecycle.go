@@ -6,6 +6,7 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/gst"
 	signalling "github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/signallingclient"
+	"github.com/pion/webrtc/v3/pkg/rtpbuffer"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -140,6 +141,10 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 	if _, err = tc.PeerConnection.AddTrack(tc.AudioTrack); err != nil {
 		panic(err)
 	}
+
+	videoJitter := rtpbuffer.NewJitter(tc.PeerConnection, tc.VideoTrack)
+	gst.SetJitter(videoJitter)
+	videoJitter.StartRTCP()
 
 	// events registration
 	tc.PeerConnection.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {

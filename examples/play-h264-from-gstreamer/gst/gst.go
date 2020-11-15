@@ -14,6 +14,7 @@ import (
 
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media"
+	"github.com/pion/webrtc/v3/pkg/rtpbuffer"
 )
 
 func init() {
@@ -28,10 +29,16 @@ type Pipeline struct {
 	Type string
 }
 
+var jitter = &rtpbuffer.Jitter{}
+
 var GLOBAL_STATE="ui"
 
 var pipeline = &Pipeline{}
 var pipelinesLock sync.Mutex
+
+func SetJitter(j *rtpbuffer.Jitter){
+	jitter = j
+}
 
 func ResetGlobalState(){
 	GLOBAL_STATE = "ui"
@@ -123,9 +130,16 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 		track = pipeline.audioTrack
 	}
 
-	if err := track.WriteSample(media.Sample{Data: C.GoBytes(buffer, bufferLen), Samples: samples}); err != nil && err != io.ErrClosedPipe {
-		panic(err)
+	if isVideo == 1{
+		if err := jitter.WriteSample(media.Sample{Data: C.GoBytes(buffer, bufferLen), Samples: samples}); err != nil && err != io.ErrClosedPipe {
+			panic(err)
+		}
+	} else {
+		if err := track.WriteSample(media.Sample{Data: C.GoBytes(buffer, bufferLen), Samples: samples}); err != nil && err != io.ErrClosedPipe {
+			panic(err)
+		}
 	}
+
 
 	C.free(buffer)
 }
