@@ -24,7 +24,7 @@ func main() {
 	log.SetLevel(log.DebugLevel)
 
 
-	tc := transcontainer.NewLifecycle(*signalling.NewSignallingClient("http://34.250.45.79:57778"))
+	tc := transcontainer.NewLifecycle(*signalling.NewSignallingClient("http://hyperscale.coldsnow.net:57778"))
 	defer Defer(tc)
 
 	tc.Start()
