@@ -19,6 +19,11 @@ type Jitter struct {
 	segmentEnd uint16
 	currentSN uint16
 	mapSync sync.RWMutex
+	nackCount int
+	pliCount int
+	firCount int
+	rembCount int
+	receiverTotalLost uint32
 	stop  bool
 }
 
@@ -30,6 +35,11 @@ func NewJitter(pc *webrtc.PeerConnection, t *webrtc.Track) *Jitter {
 		segmentStart: uint16(0),
 		segmentEnd: uint16(0),
 		currentSN: uint16(0),
+		nackCount: int(0),
+		pliCount: int(0),
+		firCount: int(0),
+		rembCount: int(0),
+		receiverTotalLost: uint32(0),
 		mapSync: sync.RWMutex{},
 		stop: false}
 	jitter.startRTCP()
@@ -37,6 +47,9 @@ func NewJitter(pc *webrtc.PeerConnection, t *webrtc.Track) *Jitter {
 }
 
 func (j *Jitter) Close(){
+	if j == nil{
+		return
+	}
 	j.stop = true
 	for k := range j.buffer{
 		delete(j.buffer, k)
@@ -46,7 +59,6 @@ func (j *Jitter) Close(){
 
 func (j *Jitter) startRTCP(){
 	go func(){
-		nackCount := 0
 		senders := j.peerConnection.GetSenders()
 		if len(senders) < 1{
 			fmt.Println("found no senders")
@@ -72,21 +84,32 @@ func (j *Jitter) startRTCP(){
 
 				switch packet := packet.(type) {
 				case *rtcp.PictureLossIndication:
-					//fmt.Println("got pli")
+					j.pliCount++
 				case *rtcp.FullIntraRequest:
-					//fmt.Println("got fir")
+					j.firCount++
 				case *rtcp.ReceiverEstimatedMaximumBitrate:
-					//fmt.Println("got remb")
+					j.rembCount++
 				case *rtcp.TransportLayerNack:
 					nack := packet
 					for _, nack := range nack.Nacks{
-						nackCount++
+						j.nackCount++
 						//fmt.Println("nackCount: ", nackCount, ". got nack for packet ", nack.PacketID)
 						j.mapSync.Lock()
-						j.track.WriteRTP(j.buffer[nack.PacketID])
+						packet, ok := j.buffer[nack.PacketID]
 						j.mapSync.Unlock()
+						if ok == false{
+							log.Warn("did not find packet with SN ", nack.PacketID, " in jitter")
+						}else{
+							j.track.WriteRTP(packet)
+						}
 					}
+				case *rtcp.ReceiverReport:
+					if len(packet.Reports) > 0{
+						j.receiverTotalLost = packet.Reports[0].TotalLost
+					}
+
 				default:
+
 				}
 			}
 		}
@@ -109,6 +132,7 @@ func (j *Jitter) startRTCP(){
 						"size": len(j.buffer),
 					}).Info("cleanup: first cleanup. setting segmentEnd")
 			}else{
+				/*
 				log.WithFields(
 					log.Fields{
 						"component": "jitter",
@@ -116,6 +140,8 @@ func (j *Jitter) startRTCP(){
 						"segmentEnd": j.segmentEnd,
 						"size": len(j.buffer),
 					}).Info("cleanup. about to delete ", j.segmentEnd - j.segmentStart, " entries")
+
+				 */
 
 				// clear previous segment
 				for i := j.segmentStart; i<=j.segmentEnd; i++{
@@ -128,6 +154,30 @@ func (j *Jitter) startRTCP(){
 				j.segmentStart = j.segmentEnd + 1
 				j.segmentEnd = j.currentSN
 			}
+		}
+	}()
+
+	go func(){
+		for range time.NewTicker(30 * time.Second).C {
+
+			if j.stop == true{
+				return
+			}
+
+			log.WithFields(
+				log.Fields{
+					"component": "jitter",
+					"nackCount": j.nackCount,
+					"pliCount": j.pliCount,
+					"friCount": j.firCount,
+					"rembCount": j.rembCount,
+					"receiverTotalLost": j.receiverTotalLost,
+					"segmentStart": j.segmentStart,
+					"segmentEnd": j.segmentEnd,
+					"size": len(j.buffer),
+				}).Info("jitter report")
+
+
 		}
 	}()
 }
