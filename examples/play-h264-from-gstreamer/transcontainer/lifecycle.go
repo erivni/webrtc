@@ -264,7 +264,7 @@ func (tc *Lifecycle) Stream(){
 	// set state
 	tc.State = ESTABLISHED
 
-	pipelineStr := fmt.Sprintf("souphttpsrc location=http://34.250.45.79:8080/bbb_360_abr.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
+	pipelineStr := fmt.Sprintf("souphttpsrc location=http://hyperscale.coldsnow.net:8080/bbb_360_abr.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
 	log.WithFields(
 		log.Fields{
 			"lifecycleState": tc.State,
