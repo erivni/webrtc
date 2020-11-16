@@ -5,6 +5,8 @@ services:
     ports:
       - "50000-50002:50000-50002/udp"
     deploy:
+      restart_policy:
+        condition: any
       resources:
         limits:
           cpus: '1'
@@ -15,6 +17,8 @@ services:
     ports:
       - "50003-50005:50000-50002/udp"
     deploy:
+      restart_policy:
+        condition: any
       resources:
         limits:
           cpus: '1'
@@ -25,6 +29,8 @@ services:
     ports:
       - "50006-50008:50000-50002/udp"
     deploy:
+      restart_policy:
+        condition: any
       resources:
         limits:
           cpus: '1'
@@ -37,6 +43,8 @@ services:
     ports:
       - "9999:8080"
     deploy:
+      restart_policy:
+        condition: any
       resources:
         limits:
           cpus: '1'
