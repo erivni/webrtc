@@ -37,6 +37,7 @@ func Defer(tc *transcontainer.Lifecycle) {
 	if err := recover(); err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "main",
 				"lifecycleState": tc.State,
 				"connectionId": tc.ConnectionId,
 				"error": err,

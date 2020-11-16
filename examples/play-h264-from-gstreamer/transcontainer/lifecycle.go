@@ -80,6 +80,7 @@ func (tc *Lifecycle) Start(){
 
 	log.WithFields(
 		log.Fields{
+			"component": "lifecycle",
 			"lifecycleState": tc.State,
 			"connectionId": tc.ConnectionId,
 		}).Info("got a offer, trying to connect to peer.")
@@ -97,6 +98,7 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 	if err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "lifecycle",
 				"lifecycleState": tc.State,
 				"connectionId": tc.ConnectionId,
 				"error": err.Error(),
@@ -150,6 +152,7 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 	tc.PeerConnection.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
 		log.WithFields(
 			log.Fields{
+				"component": "lifecycle",
 				"lifecycleState": tc.State,
 				"connectionId": tc.ConnectionId,
 				"connectionState": connectionState.String(),
@@ -170,6 +173,7 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 		if candidate == nil {
 			log.WithFields(
 				log.Fields{
+					"component": "lifecycle",
 					"lifecycleState": tc.State,
 					"connectionId": tc.ConnectionId,
 				}).Info("no more ice candidates, posting answer to signaling server.")
@@ -184,6 +188,7 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 	tc.PeerConnection.OnDataChannel(func(d *webrtc.DataChannel) {
 		log.WithFields(
 			log.Fields{
+				"component": "lifecycle",
 				"lifecycleState": tc.State,
 				"connectionId": tc.ConnectionId,
 				"dataChannelId": d.ID(),
@@ -193,6 +198,7 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 		d.OnOpen(func() {
 			log.WithFields(
 				log.Fields{
+					"component": "lifecycle",
 					"lifecycleState": tc.State,
 					"connectionId": tc.ConnectionId,
 					"dataChannelId": d.ID(),
@@ -206,6 +212,7 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			log.WithFields(
 				log.Fields{
+					"component": "lifecycle",
 					"lifecycleState": tc.State,
 					"connectionId": tc.ConnectionId,
 					"dataChannelId": d.ID(),
@@ -228,6 +235,7 @@ func (tc *Lifecycle) Connect(offer webrtc.SessionDescription) {
 
 	log.WithFields(
 		log.Fields{
+			"component": "lifecycle",
 			"lifecycleState": tc.State,
 			"connectionId": tc.ConnectionId,
 		}).Info("setting peer connection local and remote descriptions.")
@@ -267,6 +275,7 @@ func (tc *Lifecycle) Stream(){
 	pipelineStr := fmt.Sprintf("souphttpsrc location=http://hyperscale.coldsnow.net:8080/bbb_360_abr.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
 	log.WithFields(
 		log.Fields{
+			"component": "lifecycle",
 			"lifecycleState": tc.State,
 			"connectionId": tc.ConnectionId,
 			"abrPipeline": pipelineStr,
@@ -278,6 +287,7 @@ func (tc *Lifecycle) Stream(){
 	pipelineStrUI := fmt.Sprintf("souphttpsrc location=http://hyperscale.coldsnow.net:8080/bbb_360_ui.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
 	log.WithFields(
 		log.Fields{
+			"component": "lifecycle",
 			"lifecycleState": tc.State,
 			"connectionId": tc.ConnectionId,
 			"uiPipeline": pipelineStrUI,
@@ -293,6 +303,7 @@ func (tc *Lifecycle) Stream(){
 	tc.State = STREAMING
 	log.WithFields(
 		log.Fields{
+			"component": "lifecycle",
 			"lifecycleState": tc.State,
 			"connectionId": tc.ConnectionId,
 		}).Info("starting both pipelines.")
@@ -305,6 +316,7 @@ func (tc *Lifecycle) Stop(){
 
 	log.WithFields(
 		log.Fields{
+			"component": "lifecycle",
 			"lifecycleState": tc.State,
 			"connectionId": tc.ConnectionId,
 		}).Info("stopping transcontainer lifecycle and starting again.")

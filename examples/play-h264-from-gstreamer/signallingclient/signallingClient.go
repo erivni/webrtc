@@ -28,6 +28,7 @@ func (signalingClient *SignallingClient) GetQueue() (string, error){
 	if err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"error": err.Error(),
 			}).Error("failed to get a free connection, will retry in ", RETRY_INTERVAL, "s.")
@@ -38,6 +39,7 @@ func (signalingClient *SignallingClient) GetQueue() (string, error){
 	if response.StatusCode != http.StatusOK {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"httpCode": response.StatusCode,
 			}).Warn("no waiting offers are available. will retry in ", RETRY_INTERVAL, "s.")
@@ -49,6 +51,7 @@ func (signalingClient *SignallingClient) GetQueue() (string, error){
 	if err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"httpCode": response.StatusCode,
 				"error": err.Error(),
@@ -61,6 +64,7 @@ func (signalingClient *SignallingClient) GetQueue() (string, error){
 	if err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"httpCode": response.StatusCode,
 				"error": err.Error(),
@@ -71,6 +75,7 @@ func (signalingClient *SignallingClient) GetQueue() (string, error){
 	if _, ok := connection["connectionId"]; !ok {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"httpCode": response.StatusCode,
 				"error": err.Error(),
@@ -79,6 +84,7 @@ func (signalingClient *SignallingClient) GetQueue() (string, error){
 
 	log.WithFields(
 		log.Fields{
+			"component": "signallingClient",
 			"url": url,
 			"httpCode": response.StatusCode,
 			"connectionId": connection["connectionId"],
@@ -95,6 +101,7 @@ func (signalingClient *SignallingClient) GetOffer(connectionId string) (*webrtc.
 	if err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"connectionId": connectionId,
 				"error": err.Error(),
@@ -105,6 +112,7 @@ func (signalingClient *SignallingClient) GetOffer(connectionId string) (*webrtc.
 	if response.StatusCode != http.StatusOK {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"httpCode": response.StatusCode,
 				"connectionId": connectionId,
@@ -117,6 +125,7 @@ func (signalingClient *SignallingClient) GetOffer(connectionId string) (*webrtc.
 	if err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"httpCode": response.StatusCode,
 				"connectionId": connectionId,
@@ -130,6 +139,7 @@ func (signalingClient *SignallingClient) GetOffer(connectionId string) (*webrtc.
 	if err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"httpCode": response.StatusCode,
 				"connectionId": connectionId,
@@ -140,6 +150,7 @@ func (signalingClient *SignallingClient) GetOffer(connectionId string) (*webrtc.
 
 	log.WithFields(
 		log.Fields{
+			"component": "signallingClient",
 			"url": url,
 			"httpCode": response.StatusCode,
 			"connectionId": connectionId,
@@ -155,6 +166,7 @@ func (signalingClient *SignallingClient) SendAnswer(connectionId string, answer 
 	if err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"error": err.Error(),
 			}).Error("failed to parse webrtc answer to string")
 		return err
@@ -165,6 +177,7 @@ func (signalingClient *SignallingClient) SendAnswer(connectionId string, answer 
 	if err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"error": err.Error(),
 			}).Error("failed to post an answer")
@@ -174,6 +187,7 @@ func (signalingClient *SignallingClient) SendAnswer(connectionId string, answer 
 	if response.StatusCode != http.StatusCreated {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"httpCode": response.StatusCode,
 			}).Error("failed to post an answer")
@@ -182,6 +196,7 @@ func (signalingClient *SignallingClient) SendAnswer(connectionId string, answer 
 
 	log.WithFields(
 		log.Fields{
+			"component": "signallingClient",
 			"url": url,
 			"httpCode": response.StatusCode,
 			"connectionId": connectionId,
@@ -197,6 +212,7 @@ func (signalingClient *SignallingClient) GetIce(connectionId string, pc *webrtc.
 	if err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"connectionId": connectionId,
 				"error": err.Error(),
@@ -207,6 +223,7 @@ func (signalingClient *SignallingClient) GetIce(connectionId string, pc *webrtc.
 	if response.StatusCode != http.StatusOK {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"httpCode": response.StatusCode,
 			}).Warn("no ice candidates are available. querying again in 5s..")
@@ -218,6 +235,7 @@ func (signalingClient *SignallingClient) GetIce(connectionId string, pc *webrtc.
 	if err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"httpCode": response.StatusCode,
 				"connectionId": connectionId,
@@ -230,6 +248,7 @@ func (signalingClient *SignallingClient) GetIce(connectionId string, pc *webrtc.
 	if err != nil {
 		log.WithFields(
 			log.Fields{
+				"component": "signallingClient",
 				"url": url,
 				"httpCode": response.StatusCode,
 				"connectionId": connectionId,
@@ -240,6 +259,7 @@ func (signalingClient *SignallingClient) GetIce(connectionId string, pc *webrtc.
 
 	log.WithFields(
 		log.Fields{
+			"component": "signallingClient",
 			"url": url,
 			"httpCode": response.StatusCode,
 			"connectionId": connectionId,
