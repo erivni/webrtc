@@ -88,8 +88,11 @@ void gstreamer_send_start_pipeline(GstElement *pipeline, int isAbr) {
   audioData[0] = 0;
   audioData[1] = isAbr;
 
-  g_object_set(audio, "emit-signals", TRUE, NULL);
-  g_signal_connect(audio, "new-sample", G_CALLBACK(gstreamer_send_new_sample_handler), audioData);
+    if(audio != NULL){
+        g_object_set(audio, "emit-signals", TRUE, NULL);
+        g_signal_connect(audio, "new-sample", G_CALLBACK(gstreamer_send_new_sample_handler), audioData);
+    }
+
 
   g_object_set(video, "emit-signals", TRUE, NULL);
   g_signal_connect(video, "new-sample", G_CALLBACK(gstreamer_send_new_sample_handler), videoData);
