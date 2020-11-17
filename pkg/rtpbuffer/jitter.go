@@ -42,7 +42,6 @@ func NewJitter(pc *webrtc.PeerConnection, t *webrtc.Track) *Jitter {
 		receiverTotalLost: uint32(0),
 		mapSync: sync.RWMutex{},
 		stop: false}
-	jitter.startRTCP()
 	return  jitter
 }
 
@@ -57,7 +56,7 @@ func (j *Jitter) Close(){
 	j.buffer = nil
 }
 
-func (j *Jitter) startRTCP(){
+func (j *Jitter) StartRTCP(){
 	go func(){
 		senders := j.peerConnection.GetSenders()
 		if len(senders) < 1{
