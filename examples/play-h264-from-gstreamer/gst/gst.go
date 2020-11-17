@@ -8,6 +8,7 @@ package gst
 */
 import "C"
 import (
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -110,7 +111,7 @@ const (
 
 //export goHandlePipelineBuffer
 func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.int, isVideo C.int, isAbr C.int) {
-
+	isIframe(buffer, bufferLen)
 	if (isAbr == 0 && GLOBAL_STATE == "switch_to_ui") {
 		if (isVideo == 1 && isIframe(buffer, bufferLen)) {
 			GLOBAL_STATE = "ui"
@@ -149,8 +150,10 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 
 func isIframe(buffer unsafe.Pointer, bufferLen C.int) bool{
 	isIframe := false
+	fmt.Println("--- frame start ---")
 	emitNalus(C.GoBytes(buffer, bufferLen), func(nalu []byte) {
 		naluType := nalu[0] & naluTypeBitmask
+		fmt.Println(naluType)
 		if naluType == 5 {
 			isIframe = true
 		}
