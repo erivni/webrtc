@@ -108,6 +108,10 @@ void gstreamer_send_pause_pipeline(GstElement *pipeline) {
   gst_element_set_state(pipeline, GST_STATE_PAUSED);
 }
 
+void gstreamer_send_stop_pipeline(GstElement *pipeline) {
+  gst_element_set_state(pipeline, GST_STATE_NULL);
+}
+
 void gstreamer_send_seek(GstElement *pipeline, int64_t seek_pos) {
     if (!gst_element_seek (pipeline, 1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT | GST_SEEK_FLAG_SKIP,
              GST_SEEK_TYPE_SET, seek_pos * GST_SECOND,

@@ -326,10 +326,10 @@ func (tc *Lifecycle) Stop(){
 		}).Info("stopping transcontainer lifecycle and starting again.")
 
 	if tc.AbrPipeline != nil {
-		tc.AbrPipeline.Pause()
+		tc.AbrPipeline.Stop()
 	}
 	if tc.UiPipeLine != nil {
-		tc.UiPipeLine.Pause()
+		tc.UiPipeLine.Stop()
 	}
 	if tc.PeerConnection != nil {
 		err := tc.PeerConnection.Close()
