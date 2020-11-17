@@ -109,10 +109,22 @@ const (
 	videoClockRate = 90000
 	audioClockRate = 48000
 )
-
+var frameCount = 0
 //export goHandlePipelineBuffer
 func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.int, isVideo C.int, isAbr C.int) {
-	isIframe(buffer, bufferLen)
+
+
+	if GLOBAL_STATE == "abr" && isAbr == 1{
+		isIframe(buffer, bufferLen)
+		frameCount++
+		log.Info("is abr. frame count: ", frameCount)
+	}
+	if GLOBAL_STATE == "ui" && isAbr == 0{
+		isIframe(buffer, bufferLen)
+		frameCount++
+		log.Info("is ui. frame count: ", frameCount)
+	}
+
 	if (isAbr == 0 && GLOBAL_STATE == "switch_to_ui") {
 		if (isVideo == 1 && isIframe(buffer, bufferLen)) {
 			GLOBAL_STATE = "ui"
