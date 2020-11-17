@@ -8,8 +8,11 @@ package gst
 */
 import "C"
 import (
+	"fmt"
+	log "github.com/sirupsen/logrus"
 	"io"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/pion/webrtc/v3"
@@ -109,7 +112,7 @@ const (
 
 //export goHandlePipelineBuffer
 func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.int, isVideo C.int, isAbr C.int) {
-
+	isIframe(buffer, bufferLen)
 	if (isAbr == 0 && GLOBAL_STATE == "switch_to_ui") {
 		if (isVideo == 1 && isIframe(buffer, bufferLen)) {
 			GLOBAL_STATE = "ui"
@@ -128,10 +131,8 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 	var samples uint32
 
 	if isVideo == 1 {
-		samples = videoClockRate / uint32(25) //uint32(videoClockRate * (float32(duration) / 1000000000))
 		track = pipeline.videoTrack
 	} else {
-		samples = uint32(audioClockRate * (float32(duration) / 1000000000))
 		track = pipeline.audioTrack
 	}
 
@@ -151,8 +152,10 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 
 func isIframe(buffer unsafe.Pointer, bufferLen C.int) bool{
 	isIframe := false
+	log.Info(time.Now().UnixNano() / int64(time.Millisecond), "--- frame start ---")
 	emitNalus(C.GoBytes(buffer, bufferLen), func(nalu []byte) {
 		naluType := nalu[0] & naluTypeBitmask
+		fmt.Println(naluType)
 		if naluType == 5 {
 			isIframe = true
 		}
