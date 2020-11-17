@@ -285,7 +285,8 @@ func (tc *Lifecycle) Stream(){
 	tc.AbrPipeline = &gst.Pipeline{}
 	tc.AbrPipeline = gst.CreatePipeline(pipelineStr, tc.AudioTrack, tc.VideoTrack, "abr")
 
-	pipelineStrUI := fmt.Sprintf("souphttpsrc location=http://hyperscale.coldsnow.net:8080/bbb_360_ui.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
+	pipelineStrUI := fmt.Sprintf("udpsrc port=5000 caps = \"application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96\" ! rtph264depay ! video/x-h264,stream-format=byte-stream,alignment=au ! appsink name=video")
+	//pipelineStrUI := fmt.Sprintf("udpsrc port=5000 ! application/x-rtp, encoding-name=H264, payload=96 ! rtph264depay ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video")
 	log.WithFields(
 		log.Fields{
 			"component": "lifecycle",
@@ -323,10 +324,10 @@ func (tc *Lifecycle) Stop(){
 		}).Info("stopping transcontainer lifecycle and starting again.")
 
 	if tc.AbrPipeline != nil {
-		tc.AbrPipeline.Pause()
+		tc.AbrPipeline.Stop()
 	}
 	if tc.UiPipeLine != nil {
-		tc.UiPipeLine.Pause()
+		tc.UiPipeLine.Stop()
 	}
 	if tc.PeerConnection != nil {
 		err := tc.PeerConnection.Close()

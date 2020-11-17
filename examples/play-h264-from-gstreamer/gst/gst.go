@@ -93,6 +93,11 @@ func (p *Pipeline) Pause() {
 	C.gstreamer_send_pause_pipeline(p.Pipeline)
 }
 
+// Stop sets the pipeline to PAUSED
+func (p *Pipeline) Stop() {
+	C.gstreamer_send_stop_pipeline(p.Pipeline)
+}
+
 // SeekToTime seeks on the pipeline
 func (p *Pipeline) SeekToTime(seekPos int64) {
 	C.gstreamer_send_seek(p.Pipeline, C.int64_t(seekPos))
