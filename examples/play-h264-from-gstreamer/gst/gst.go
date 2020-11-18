@@ -143,8 +143,10 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 	var samples uint32
 
 	if isVideo == 1 {
+		samples = videoClockRate / uint32(25) //uint32(videoClockRate * (float32(duration) / 1000000000))
 		track = pipeline.videoTrack
 	} else {
+		samples = uint32(audioClockRate * (float32(duration) / 1000000000))
 		track = pipeline.audioTrack
 	}
 
