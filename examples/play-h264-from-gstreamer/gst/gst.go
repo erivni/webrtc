@@ -9,7 +9,6 @@ package gst
 import "C"
 import (
 	"fmt"
-	"github.com/pion/rtp"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"sync"
@@ -152,45 +151,15 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 	}
 
 	if isVideo == 1{
-		if isAbr == 1{
-			if err := jitter.WriteSample(media.Sample{Data: C.GoBytes(buffer, bufferLen), Samples: samples}); err != nil && err != io.ErrClosedPipe {
-				panic(err)
-			}
-		}else{
-
-
-			packet := &rtp.Packet{}
-			packet.Unmarshal(C.GoBytes(buffer, bufferLen))
-			packet.Header = rtp.Header{
-				Version:        2,
-				Padding:        packet.Padding,
-				Extension:      packet.Extension,
-				Marker:         packet.Marker,
-				PayloadType:    track.PayloadType(),
-				SequenceNumber: packet.SequenceNumber,
-				Timestamp:      packet.Timestamp, // Figure out how to do timestamps
-				SSRC:           track.SSRC(),
-				CSRC: packet.CSRC,
-			}
-			//packet.Header.SSRC = track.SSRC()
-
-
-			if err := track.WriteRTP(packet); err != nil && err != io.ErrClosedPipe {
-				panic(err)
-			}
-
-			 /*
-
 
 
 			if err := jitter.WriteSample(media.Sample{Data: C.GoBytes(buffer, bufferLen), Samples: samples}); err != nil && err != io.ErrClosedPipe {
 				panic(err)
 			}
 
-			  */
 
 
-		}
+
 	} else {
 		if err := track.WriteSample(media.Sample{Data: C.GoBytes(buffer, bufferLen), Samples: samples}); err != nil && err != io.ErrClosedPipe {
 			panic(err)
