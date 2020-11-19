@@ -1,9 +1,10 @@
-version: '2.2'
+version: '3.8'
 services:
   transcontainer1:
     build: .
     ports:
       - "50000-50002:50000-50002/udp"
+      - "5000:5000/udp"
     deploy:
       restart_policy:
         condition: any
@@ -16,6 +17,7 @@ services:
     build: .
     ports:
       - "50003-50005:50000-50002/udp"
+      - "5001:5000/udp"
     deploy:
       restart_policy:
         condition: any
@@ -28,6 +30,7 @@ services:
     build: .
     ports:
       - "50006-50008:50000-50002/udp"
+      - "5002:5000/udp"
     deploy:
       restart_policy:
         condition: any
