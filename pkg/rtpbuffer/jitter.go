@@ -187,6 +187,11 @@ func (j *Jitter) WriteSample(s media.Sample) error {
 	}
 
 	samples := s.Duration.Seconds() * j.track.ClockRate
+	if j.track.Packetizer == nil{
+		fmt.Println(" ---------------- packetizer is NULL!!! ---------------")
+		return nil
+	}
+	
 	packets := j.track.Packetizer.Packetize(s.Data, uint32(samples))
 
 	//fmt.Println("packets in frame: ", len(packets))
