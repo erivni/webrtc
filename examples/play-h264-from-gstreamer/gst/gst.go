@@ -93,7 +93,7 @@ func (p *Pipeline) Pause() {
 	C.gstreamer_send_pause_pipeline(p.Pipeline)
 }
 
-// Stop sets the pipeline to PAUSED
+// Stop sets the pipeline to NULL
 func (p *Pipeline) Stop() {
 	C.gstreamer_send_stop_pipeline(p.Pipeline)
 }
@@ -103,27 +103,21 @@ func (p *Pipeline) SeekToTime(seekPos int64) {
 	C.gstreamer_send_seek(p.Pipeline, C.int64_t(seekPos))
 }
 
-const (
-	videoClockRate = 90000
-	audioClockRate = 48000
-)
-
 //export goHandlePipelineBuffer
 func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.int, isVideo C.int, isAbr C.int) {
 
-	if (isAbr == 0 && GLOBAL_STATE == "switch_to_ui") {
-		if (isVideo == 1 && isIframe(buffer, bufferLen)) {
+	if isAbr == 0 && GLOBAL_STATE == "switch_to_ui" {
+		if isVideo == 1 && isIframe(buffer, bufferLen) {
 			GLOBAL_STATE = "ui"
 		}
-	} else if (isAbr == 1 && GLOBAL_STATE == "switch_to_abr") {
-		if (isVideo == 1 && isIframe(buffer, bufferLen)){
+	} else if isAbr == 1 && GLOBAL_STATE == "switch_to_abr" {
+		if isVideo == 1 && isIframe(buffer, bufferLen) {
 			GLOBAL_STATE = "abr"
 		}
 	}
-	if (isAbr == 1 && (GLOBAL_STATE == "ui" || GLOBAL_STATE == "switch_to_abr") || isAbr == 0 && (GLOBAL_STATE == "abr"|| GLOBAL_STATE == "switch_to_ui")) {
+	if isAbr == 1 && (GLOBAL_STATE == "ui" || GLOBAL_STATE == "switch_to_abr") || isAbr == 0 && (GLOBAL_STATE == "abr"|| GLOBAL_STATE == "switch_to_ui") {
 		return
 	}
-
 
 	var track *webrtc.TrackLocalStaticSample
 

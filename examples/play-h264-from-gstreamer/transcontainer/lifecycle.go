@@ -285,8 +285,7 @@ func (tc *Lifecycle) Stream(){
 	tc.AbrPipeline = &gst.Pipeline{}
 	tc.AbrPipeline = gst.CreatePipeline(pipelineStr, tc.AudioTrack, tc.VideoTrack, "abr")
 
-	pipelineStrUI := fmt.Sprintf("udpsrc port=5000 caps = \"application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96\" ! rtph264depay ! video/x-h264,stream-format=byte-stream,alignment=au ! appsink name=video")
-	//pipelineStrUI := fmt.Sprintf("udpsrc port=5000 ! application/x-rtp, encoding-name=H264, payload=96 ! rtph264depay ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video")
+	pipelineStrUI := fmt.Sprintf("udpsrc port=5000 caps = \"application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96, format=(string)I420\" !  rtph264depay ! video/x-h264,stream-format=byte-stream,alignment=au,framerate=25/1 ! appsink name=video")
 	log.WithFields(
 		log.Fields{
 			"component": "lifecycle",
