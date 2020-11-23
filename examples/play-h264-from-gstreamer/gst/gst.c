@@ -88,11 +88,8 @@ void gstreamer_send_start_pipeline(GstElement *pipeline, int isAbr) {
   audioData[0] = 0;
   audioData[1] = isAbr;
 
-    if(audio != NULL){
-        g_object_set(audio, "emit-signals", TRUE, NULL);
-        g_signal_connect(audio, "new-sample", G_CALLBACK(gstreamer_send_new_sample_handler), audioData);
-    }
-
+  g_object_set(audio, "emit-signals", TRUE, NULL);
+  g_signal_connect(audio, "new-sample", G_CALLBACK(gstreamer_send_new_sample_handler), audioData);
 
   g_object_set(video, "emit-signals", TRUE, NULL);
   g_signal_connect(video, "new-sample", G_CALLBACK(gstreamer_send_new_sample_handler), videoData);
@@ -106,10 +103,6 @@ void gstreamer_send_play_pipeline(GstElement *pipeline) {
 
 void gstreamer_send_pause_pipeline(GstElement *pipeline) {
   gst_element_set_state(pipeline, GST_STATE_PAUSED);
-}
-
-void gstreamer_send_stop_pipeline(GstElement *pipeline) {
-  gst_element_set_state(pipeline, GST_STATE_NULL);
 }
 
 void gstreamer_send_seek(GstElement *pipeline, int64_t seek_pos) {

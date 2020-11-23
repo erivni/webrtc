@@ -3,7 +3,6 @@ package samplebuilder
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3/pkg/media"
@@ -59,7 +58,7 @@ func TestSampleBuilder(t *testing.T) {
 				{Header: rtp.Header{SequenceNumber: 5002, Timestamp: 7}, Payload: []byte{0x03}},
 			},
 			samples: []*media.Sample{
-				{Data: []byte{0x02}, Duration: time.Second},
+				{Data: []byte{0x02}, Samples: 1},
 			},
 			timestamps: []uint32{
 				6,
@@ -75,7 +74,7 @@ func TestSampleBuilder(t *testing.T) {
 				{Header: rtp.Header{SequenceNumber: 5003, Timestamp: 7}, Payload: []byte{0x04}},
 			},
 			samples: []*media.Sample{
-				{Data: []byte{0x02, 0x03}, Duration: time.Second},
+				{Data: []byte{0x02, 0x03}, Samples: 1},
 			},
 			timestamps: []uint32{
 				6,
@@ -103,7 +102,7 @@ func TestSampleBuilder(t *testing.T) {
 			withHeadChecker: true,
 			headBytes:       []byte{0x02},
 			samples: []*media.Sample{
-				{Data: []byte{0x02}, Duration: 0},
+				{Data: []byte{0x02}, Samples: 0},
 			},
 			timestamps: []uint32{
 				6,
@@ -134,10 +133,10 @@ func TestSampleBuilder(t *testing.T) {
 				{Header: rtp.Header{SequenceNumber: 5005, Timestamp: 6}, Payload: []byte{0x06}},
 			},
 			samples: []*media.Sample{
-				{Data: []byte{0x02}, Duration: time.Second},
-				{Data: []byte{0x03}, Duration: time.Second},
-				{Data: []byte{0x04}, Duration: time.Second},
-				{Data: []byte{0x05}, Duration: time.Second},
+				{Data: []byte{0x02}, Samples: 1},
+				{Data: []byte{0x03}, Samples: 1},
+				{Data: []byte{0x04}, Samples: 1},
+				{Data: []byte{0x05}, Samples: 1},
 			},
 			timestamps: []uint32{
 				2,
@@ -160,7 +159,7 @@ func TestSampleBuilder(t *testing.T) {
 				))
 			}
 
-			s := New(t.maxLate, &fakeDepacketizer{}, 1, opts...)
+			s := New(t.maxLate, &fakeDepacketizer{}, opts...)
 			samples := []*media.Sample{}
 
 			for _, p := range t.packets {
@@ -184,7 +183,7 @@ func TestSampleBuilder(t *testing.T) {
 				))
 			}
 
-			s := New(t.maxLate, &fakeDepacketizer{}, 1, opts...)
+			s := New(t.maxLate, &fakeDepacketizer{}, opts...)
 			samples := []*media.Sample{}
 			timestamps := []uint32{}
 
@@ -205,17 +204,17 @@ func TestSampleBuilder(t *testing.T) {
 // SampleBuilder should respect maxLate if we popped successfully but then have a gap larger then maxLate
 func TestSampleBuilderMaxLate(t *testing.T) {
 	assert := assert.New(t)
-	s := New(50, &fakeDepacketizer{}, 1)
+	s := New(50, &fakeDepacketizer{})
 
 	s.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: 0, Timestamp: 1}, Payload: []byte{0x01}})
 	s.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: 1, Timestamp: 2}, Payload: []byte{0x01}})
 	s.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: 2, Timestamp: 3}, Payload: []byte{0x01}})
-	assert.Equal(s.Pop(), &media.Sample{Data: []byte{0x01}, Duration: time.Second}, "Failed to build samples before gap")
+	assert.Equal(s.Pop(), &media.Sample{Data: []byte{0x01}, Samples: 1}, "Failed to build samples before gap")
 
 	s.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: 5000, Timestamp: 500}, Payload: []byte{0x02}})
 	s.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: 5001, Timestamp: 501}, Payload: []byte{0x02}})
 	s.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: 5002, Timestamp: 502}, Payload: []byte{0x02}})
-	assert.Equal(s.Pop(), &media.Sample{Data: []byte{0x02}, Duration: time.Second}, "Failed to build samples after large gap")
+	assert.Equal(s.Pop(), &media.Sample{Data: []byte{0x02}, Samples: 1}, "Failed to build samples after large gap")
 }
 
 func TestSeqnumDistance(t *testing.T) {
@@ -248,7 +247,7 @@ func TestSampleBuilderCleanReference(t *testing.T) {
 	} {
 		seqStart := seqStart
 		t.Run(fmt.Sprintf("From%d", seqStart), func(t *testing.T) {
-			s := New(10, &fakeDepacketizer{}, 1)
+			s := New(10, &fakeDepacketizer{})
 
 			s.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: 0 + seqStart, Timestamp: 0}, Payload: []byte{0x01}})
 			s.Push(&rtp.Packet{Header: rtp.Header{SequenceNumber: 1 + seqStart, Timestamp: 0}, Payload: []byte{0x02}})

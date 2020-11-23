@@ -2,8 +2,6 @@
 package samplebuilder
 
 import (
-	"time"
-
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3/pkg/media"
 )
@@ -15,9 +13,6 @@ type SampleBuilder struct {
 
 	// Interface that allows us to take RTP packets to samples
 	depacketizer rtp.Depacketizer
-
-	// sampleRate allows us to compute duration of media.SamplecA
-	sampleRate uint32
 
 	// Last seqnum that has been added to buffer
 	lastPush uint16
@@ -39,8 +34,8 @@ type SampleBuilder struct {
 // A large maxLate will result in less packet loss but higher latency.
 // The depacketizer extracts media samples from RTP packets.
 // Several depacketizers are available in package github.com/pion/rtp/codecs.
-func New(maxLate uint16, depacketizer rtp.Depacketizer, sampleRate uint32, opts ...Option) *SampleBuilder {
-	s := &SampleBuilder{maxLate: maxLate, depacketizer: depacketizer, sampleRate: sampleRate}
+func New(maxLate uint16, depacketizer rtp.Depacketizer, opts ...Option) *SampleBuilder {
+	s := &SampleBuilder{maxLate: maxLate, depacketizer: depacketizer}
 	for _, o := range opts {
 		o(s)
 	}
@@ -89,8 +84,7 @@ func (s *SampleBuilder) buildSample(firstBuffer uint16) (*media.Sample, uint32) 
 			for j := firstBuffer; j < i; j++ {
 				s.buffer[j] = nil
 			}
-
-			return &media.Sample{Data: data, Duration: time.Duration((samples/s.sampleRate)*1000) * time.Millisecond}, s.lastPopTimestamp
+			return &media.Sample{Data: data, Samples: samples}, s.lastPopTimestamp
 		}
 
 		p, err := s.depacketizer.Unmarshal(s.buffer[i].Payload)

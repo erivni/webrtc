@@ -1,5 +1,3 @@
-// +build !js
-
 package main
 
 import (
@@ -19,9 +17,7 @@ func doSignaling(w http.ResponseWriter, r *http.Request) {
 
 	if peerConnection == nil {
 		m := webrtc.MediaEngine{}
-		if err = m.RegisterDefaultCodecs(); err != nil {
-			panic(err)
-		}
+		m.RegisterDefaultCodecs()
 
 		settingEngine := webrtc.SettingEngine{}
 

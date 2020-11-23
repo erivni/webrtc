@@ -67,8 +67,9 @@ func createPeerConnection(w http.ResponseWriter, r *http.Request) {
 
 // Add a single video track
 func addVideo(w http.ResponseWriter, r *http.Request) {
-	videoTrack, err := webrtc.NewTrackLocalStaticSample(
-		webrtc.RTPCodecCapability{MimeType: "video/h264"},
+	videoTrack, err := peerConnection.NewTrack(
+		webrtc.DefaultPayloadTypeH264,
+		randutil.NewMathRandomGenerator().Uint32(),
 		fmt.Sprintf("video-%d", randutil.NewMathRandomGenerator().Uint32()),
 		fmt.Sprintf("video-%d", randutil.NewMathRandomGenerator().Uint32()),
 	)
@@ -121,7 +122,7 @@ func main() {
 
 // Read a video file from disk and write it to a webrtc.Track
 // When the video has been completely read this exits without error
-func writeVideoToTrack(t *webrtc.TrackLocalStaticSample) {
+func writeVideoToTrack(t *webrtc.Track) {
 
 	go func() {
 		file, h264Err := os.Open("output.h264")
@@ -157,7 +158,7 @@ func writeVideoToTrack(t *webrtc.TrackLocalStaticSample) {
 				spsAndPpsCache = []byte{}
 			}
 
-			if h264Err = t.WriteSample(media.Sample{Data: nal.Data, Duration: time.Second}); h264Err != nil {
+			if h264Err = t.WriteSample(media.Sample{Data: nal.Data, Samples: 90000}); h264Err != nil {
 				panic(h264Err)
 			}
 		}

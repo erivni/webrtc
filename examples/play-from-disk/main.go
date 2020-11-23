@@ -1,5 +1,3 @@
-// +build !js
-
 package main
 
 import (
@@ -9,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/pion/randutil"
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/examples/internal/signal"
 	"github.com/pion/webrtc/v3/pkg/media"
@@ -22,6 +21,9 @@ const (
 )
 
 func main() {
+
+	sdpChan := signal.HTTPSDPServer()
+
 	// Assert that we have an audio or video file
 	_, err := os.Stat(videoFileName)
 	haveVideoFile := !os.IsNotExist(err)
@@ -30,11 +32,23 @@ func main() {
 	haveAudioFile := !os.IsNotExist(err)
 
 	if !haveAudioFile && !haveVideoFile {
-		panic("Could not find `" + audioFileName + "` or `" + videoFileName + "`")
+		//panic("Could not find `" + audioFileName + "` or `" + videoFileName + "`")
+	}
+
+	// Wait for the offer to be pasted
+	offer := webrtc.SessionDescription{}
+	signal.Decode(<-sdpChan, &offer)
+
+	// We make our own mediaEngine so we can place the sender's codecs in it.  This because we must use the
+	// dynamic media type from the sender in our answer. This is not required if we are the offerer
+	mediaEngine := webrtc.MediaEngine{}
+	if err = mediaEngine.PopulateFromSDP(offer); err != nil {
+		panic(err)
 	}
 
 	// Create a new RTCPeerConnection
-	peerConnection, err := webrtc.NewPeerConnection(webrtc.Configuration{
+	api := webrtc.NewAPI(webrtc.WithMediaEngine(mediaEngine))
+	peerConnection, err := api.NewPeerConnection(webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
 				URLs: []string{"stun:stun.l.google.com:19302"},
@@ -48,13 +62,12 @@ func main() {
 
 	if haveVideoFile {
 		// Create a video track
-		videoTrack, videoTrackErr := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: "video/vp8"}, "video", "pion")
-		if videoTrackErr != nil {
-			panic(videoTrackErr)
+		videoTrack, addTrackErr := peerConnection.NewTrack(getPayloadType(mediaEngine, webrtc.RTPCodecTypeVideo, "VP8"), randutil.NewMathRandomGenerator().Uint32(), "video", "pion")
+		if addTrackErr != nil {
+			panic(addTrackErr)
 		}
-
-		if _, videoTrackErr = peerConnection.AddTrack(videoTrack); videoTrackErr != nil {
-			panic(videoTrackErr)
+		if _, addTrackErr = peerConnection.AddTrack(videoTrack); addTrackErr != nil {
+			panic(addTrackErr)
 		}
 
 		go func() {
@@ -87,7 +100,7 @@ func main() {
 				}
 
 				time.Sleep(sleepTime)
-				if ivfErr = videoTrack.WriteSample(media.Sample{Data: frame, Duration: time.Second}); ivfErr != nil {
+				if ivfErr = videoTrack.WriteSample(media.Sample{Data: frame, Samples: 90000}); ivfErr != nil {
 					panic(ivfErr)
 				}
 			}
@@ -96,12 +109,12 @@ func main() {
 
 	if haveAudioFile {
 		// Create a audio track
-		audioTrack, audioTrackErr := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: "audio/opus"}, "audio", "pion")
-		if audioTrackErr != nil {
-			panic(audioTrackErr)
+		audioTrack, addTrackErr := peerConnection.NewTrack(getPayloadType(mediaEngine, webrtc.RTPCodecTypeAudio, "opus"), randutil.NewMathRandomGenerator().Uint32(), "audio", "pion")
+		if addTrackErr != nil {
+			panic(addTrackErr)
 		}
-		if _, audioTrackErr = peerConnection.AddTrack(audioTrack); audioTrackErr != nil {
-			panic(audioTrackErr)
+		if _, addTrackErr = peerConnection.AddTrack(audioTrack); addTrackErr != nil {
+			panic(addTrackErr)
 		}
 
 		go func() {
@@ -136,13 +149,13 @@ func main() {
 				// The amount of samples is the difference between the last and current timestamp
 				sampleCount := float64(pageHeader.GranulePosition - lastGranule)
 				lastGranule = pageHeader.GranulePosition
-				sampleDuration := time.Duration((sampleCount/48000)*1000) * time.Millisecond
 
-				if oggErr = audioTrack.WriteSample(media.Sample{Data: pageData, Duration: sampleDuration}); oggErr != nil {
+				if oggErr = audioTrack.WriteSample(media.Sample{Data: pageData, Samples: uint32(sampleCount)}); oggErr != nil {
 					panic(oggErr)
 				}
 
-				time.Sleep(sampleDuration)
+				// Convert seconds to Milliseconds, Sleep doesn't accept floats
+				time.Sleep(time.Duration((sampleCount/48000)*1000) * time.Millisecond)
 			}
 		}()
 	}
@@ -155,10 +168,6 @@ func main() {
 			iceConnectedCtxCancel()
 		}
 	})
-
-	// Wait for the offer to be pasted
-	offer := webrtc.SessionDescription{}
-	signal.Decode(signal.MustReadStdin(), &offer)
 
 	// Set the remote SessionDescription
 	if err = peerConnection.SetRemoteDescription(offer); err != nil {
@@ -189,4 +198,16 @@ func main() {
 
 	// Block forever
 	select {}
+}
+
+// Search for Codec PayloadType
+//
+// Since we are answering we need to match the remote PayloadType
+func getPayloadType(m webrtc.MediaEngine, codecType webrtc.RTPCodecType, codecName string) uint8 {
+	for _, codec := range m.GetCodecsByKind(codecType) {
+		if codec.Name == codecName {
+			return codec.PayloadType
+		}
+	}
+	panic(fmt.Sprintf("Remote peer does not support %s", codecName))
 }

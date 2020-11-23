@@ -58,7 +58,7 @@ Now go build something awesome! Here are some **ideas** to get your creative jui
 Check out [WebRTC for the Curious](https://webrtcforthecurious.com). A book about WebRTC in depth, not just about the APIs.
 Learn the full details of ICE, SCTP, DTLS, SRTP, and how they work together to make up the WebRTC stack.
 
-This is also a great resource if you are trying to debug. Learn the tools of the trade and how to approach WebRTC issues.
+This is also a great resource if you are trying to debug. Leran the tools of the trade and how to approach WebRTC issues.
 
 This book is vendor agnostic and will not have any Pion specific information.
 
@@ -209,9 +209,6 @@ Check out the **[contributing wiki](https://github.com/pion/webrtc/wiki/Contribu
 * [Assad Obaid](https://github.com/assadobaid)
 * [Jamie Good](https://github.com/jamiegood) - *Bug fix in jsfiddle example*
 * [Artur Shellunts](https://github.com/ashellunts)
-* [Sean Knight](https://github.com/SeanKnight)
-* [o0olele](https://github.com/o0olele)
-* [Bo Shi](https://github.com/bshimc)
 
 ### License
 MIT License - see [LICENSE](LICENSE) for full text

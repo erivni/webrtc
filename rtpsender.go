@@ -6,20 +6,17 @@ import (
 	"io"
 	"sync"
 
-	"github.com/pion/randutil"
 	"github.com/pion/rtcp"
+	"github.com/pion/rtp"
 	"github.com/pion/srtp"
 )
 
 // RTPSender allows an application to control how a given Track is encoded and transmitted to a remote peer
 type RTPSender struct {
-	track          TrackLocal
+	track          *Track
 	rtcpReadStream *srtp.ReadStreamSRTCP
 
 	transport *DTLSTransport
-
-	payloadType PayloadType
-	ssrc        SSRC
 
 	// nolint:godox
 	// TODO(sgotti) remove this when in future we'll avoid replacing
@@ -29,24 +26,25 @@ type RTPSender struct {
 
 	// A reference to the associated api object
 	api *API
-	id  string
 
 	mu                     sync.RWMutex
 	sendCalled, stopCalled chan interface{}
 }
 
 // NewRTPSender constructs a new RTPSender
-func (api *API) NewRTPSender(track TrackLocal, transport *DTLSTransport) (*RTPSender, error) {
+func (api *API) NewRTPSender(track *Track, transport *DTLSTransport) (*RTPSender, error) {
 	if track == nil {
 		return nil, errRTPSenderTrackNil
 	} else if transport == nil {
 		return nil, errRTPSenderDTLSTransportNil
 	}
 
-	id, err := randutil.GenerateCryptoRandomString(32, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	if err != nil {
-		return nil, err
+	track.mu.Lock()
+	defer track.mu.Unlock()
+	if track.receiver != nil {
+		return nil, errRTPSenderCannotConstructRemoteTrack
 	}
+	track.totalSenderCount++
 
 	return &RTPSender{
 		track:      track,
@@ -54,8 +52,6 @@ func (api *API) NewRTPSender(track TrackLocal, transport *DTLSTransport) (*RTPSe
 		api:        api,
 		sendCalled: make(chan interface{}),
 		stopCalled: make(chan interface{}),
-		ssrc:       SSRC(randutil.NewMathRandomGenerator().Uint32()),
-		id:         id,
 	}, nil
 }
 
@@ -80,13 +76,13 @@ func (r *RTPSender) Transport() *DTLSTransport {
 }
 
 // Track returns the RTCRtpTransceiver track, or nil
-func (r *RTPSender) Track() TrackLocal {
+func (r *RTPSender) Track() *Track {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.track
 }
 
-func (r *RTPSender) setTrack(track TrackLocal) {
+func (r *RTPSender) setTrack(track *Track) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.track = track
@@ -106,29 +102,14 @@ func (r *RTPSender) Send(parameters RTPSendParameters) error {
 		return err
 	}
 
-	r.rtcpReadStream, err = srtcpSession.OpenReadStream(uint32(parameters.Encodings.SSRC))
+	r.rtcpReadStream, err = srtcpSession.OpenReadStream(parameters.Encodings.SSRC)
 	if err != nil {
 		return err
 	}
 
-	srtpSession, err := r.transport.getSRTPSession()
-	if err != nil {
-		return err
-	}
-
-	rtpWriteStream, err := srtpSession.OpenWriteStream()
-	if err != nil {
-		return err
-	}
-
-	if err = r.track.Bind(TrackLocalContext{
-		id:          r.id,
-		codecs:      r.api.mediaEngine.getCodecsByKind(r.track.Kind()),
-		ssrc:        parameters.Encodings.SSRC,
-		writeStream: rtpWriteStream,
-	}); err != nil {
-		return err
-	}
+	r.track.mu.Lock()
+	r.track.activeSenders = append(r.track.activeSenders, r)
+	r.track.mu.Unlock()
 
 	close(r.sendCalled)
 	return nil
@@ -144,21 +125,25 @@ func (r *RTPSender) Stop() error {
 		return nil
 	default:
 	}
+
+	r.track.mu.Lock()
+	defer r.track.mu.Unlock()
+	filtered := []*RTPSender{}
+	for _, s := range r.track.activeSenders {
+		if s != r {
+			filtered = append(filtered, s)
+		} else {
+			r.track.totalSenderCount--
+		}
+	}
+	r.track.activeSenders = filtered
 	close(r.stopCalled)
 
-	if !r.hasSent() {
-		return nil
+	if r.hasSent() {
+		return r.rtcpReadStream.Close()
 	}
 
-	if err := r.track.Unbind(TrackLocalContext{
-		id:     r.id,
-		codecs: r.api.mediaEngine.getCodecsByKind(r.track.Kind()),
-		ssrc:   r.ssrc,
-	}); err != nil {
-		return err
-	}
-
-	return r.rtcpReadStream.Close()
+	return nil
 }
 
 // Read reads incoming RTCP for this RTPReceiver
@@ -180,6 +165,31 @@ func (r *RTPSender) ReadRTCP() ([]rtcp.Packet, error) {
 	}
 
 	return rtcp.Unmarshal(b[:i])
+}
+
+// SendRTP sends a RTP packet on this RTPSender
+//
+// You should use Track instead to send packets. This is exposed because pion/webrtc currently
+// provides no way for users to send RTP packets directly. This is makes users unable to send
+// retransmissions to a single RTPSender. in /v3 this will go away, only use this API if you really
+// need it.
+func (r *RTPSender) SendRTP(header *rtp.Header, payload []byte) (int, error) {
+	select {
+	case <-r.stopCalled:
+		return 0, errRTPSenderStopped
+	case <-r.sendCalled:
+		srtpSession, err := r.transport.getSRTPSession()
+		if err != nil {
+			return 0, err
+		}
+
+		writeStream, err := srtpSession.OpenWriteStream()
+		if err != nil {
+			return 0, err
+		}
+
+		return writeStream.WriteRTP(header, payload)
+	}
 }
 
 // hasSent tells if data has been ever sent for this instance

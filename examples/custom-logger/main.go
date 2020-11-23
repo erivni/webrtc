@@ -1,5 +1,3 @@
-// +build !js
-
 package main
 
 import (
@@ -60,11 +58,6 @@ func main() {
 	// Create a new RTCPeerConnection
 	offerPeerConnection, err := api.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
-		panic(err)
-	}
-
-	// We need a DataChannel so we can have ICE Candidates
-	if _, err = offerPeerConnection.CreateDataChannel("custom-logger", nil); err != nil {
 		panic(err)
 	}
 
