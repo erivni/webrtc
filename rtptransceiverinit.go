@@ -7,6 +7,4 @@ type RTPTransceiverInit struct {
 	// Streams       []*Track
 }
 
-// RtpTransceiverInit is a temporary mapping while we fix case sensitivity
-// Deprecated: Use RTPTransceiverInit instead
 type RtpTransceiverInit = RTPTransceiverInit //nolint: stylecheck,golint

@@ -8,7 +8,6 @@ import (
 	"io"
 	"math"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/pion/datachannel"
@@ -33,7 +32,7 @@ type DataChannel struct {
 	protocol                   string
 	negotiated                 bool
 	id                         *uint16
-	readyState                 atomic.Value // DataChannelState
+	readyState                 DataChannelState
 	bufferedAmountLowThreshold uint64
 	detachCalled               bool
 
@@ -85,7 +84,7 @@ func (api *API) newDataChannel(params *DataChannelParameters, log logging.Levele
 		return nil, &rtcerr.TypeError{Err: ErrStringSizeLimit}
 	}
 
-	d := &DataChannel{
+	return &DataChannel{
 		statsID:           fmt.Sprintf("DataChannel-%d", time.Now().UnixNano()),
 		label:             params.Label,
 		protocol:          params.Protocol,
@@ -94,12 +93,10 @@ func (api *API) newDataChannel(params *DataChannelParameters, log logging.Levele
 		ordered:           params.Ordered,
 		maxPacketLifeTime: params.MaxPacketLifeTime,
 		maxRetransmits:    params.MaxRetransmits,
+		readyState:        DataChannelStateConnecting,
 		api:               api,
 		log:               log,
-	}
-
-	d.setReadyState(DataChannelStateConnecting)
-	return d, nil
+	}, nil
 }
 
 // open opens the datachannel over the sctp transport
@@ -214,9 +211,10 @@ func (d *DataChannel) OnOpen(f func()) {
 	d.mu.Lock()
 	d.openHandlerOnce = sync.Once{}
 	d.onOpenHandler = f
+	readyState := d.readyState
 	d.mu.Unlock()
 
-	if d.ReadyState() == DataChannelStateOpen {
+	if readyState == DataChannelStateOpen {
 		// If the data channel is already open, call the handler immediately.
 		go d.openHandlerOnce.Do(func() {
 			f()
@@ -313,18 +311,11 @@ func (d *DataChannel) onError(err error) {
 	}
 }
 
-// See https://github.com/pion/webrtc/issues/1516
-// nolint:gochecknoglobals
-var rlBufPool = sync.Pool{New: func() interface{} {
-	return make([]byte, dataChannelBufferSize)
-}}
-
 func (d *DataChannel) readLoop() {
 	for {
-		buffer := rlBufPool.Get().([]byte)
+		buffer := make([]byte, dataChannelBufferSize)
 		n, isString, err := d.dataChannel.ReadDataChannel(buffer)
 		if err != nil {
-			rlBufPool.Put(buffer) // nolint:staticcheck
 			d.setReadyState(DataChannelStateClosed)
 			if err != io.EOF {
 				d.onError(err)
@@ -333,13 +324,7 @@ func (d *DataChannel) readLoop() {
 			return
 		}
 
-		m := DataChannelMessage{Data: make([]byte, n), IsString: isString}
-		copy(m.Data, buffer[:n])
-
-		// NB: Why was DataChannelMessage not passed as a pointer value?  The
-		// pragma for Put() is a false positive on the part of the CI linter.
-		d.onMessage(m)        // nolint:staticcheck
-		rlBufPool.Put(buffer) // nolint:staticcheck
+		d.onMessage(DataChannelMessage{Data: buffer[:n], IsString: isString})
 	}
 }
 
@@ -368,7 +353,7 @@ func (d *DataChannel) SendText(s string) error {
 func (d *DataChannel) ensureOpen() error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	if d.ReadyState() != DataChannelStateOpen {
+	if d.readyState != DataChannelStateOpen {
 		return io.ErrClosedPipe
 	}
 	return nil
@@ -403,10 +388,11 @@ func (d *DataChannel) Detach() (datachannel.ReadWriteCloser, error) {
 // the DataChannel object was created by this peer or the remote peer.
 func (d *DataChannel) Close() error {
 	d.mu.Lock()
+	isClosed := d.readyState == DataChannelStateClosed
 	haveSctpTransport := d.dataChannel != nil
 	d.mu.Unlock()
 
-	if d.ReadyState() == DataChannelStateClosed {
+	if isClosed {
 		return nil
 	}
 
@@ -488,10 +474,10 @@ func (d *DataChannel) ID() *uint16 {
 
 // ReadyState represents the state of the DataChannel object.
 func (d *DataChannel) ReadyState() DataChannelState {
-	if v := d.readyState.Load(); v != nil {
-		return v.(DataChannelState)
-	}
-	return DataChannelState(0)
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	return d.readyState
 }
 
 // BufferedAmount represents the number of bytes of application data
@@ -575,7 +561,7 @@ func (d *DataChannel) collectStats(collector *statsReportCollector) {
 		Label:     d.label,
 		Protocol:  d.protocol,
 		// TransportID string `json:"transportId"`
-		State: d.ReadyState(),
+		State: d.readyState,
 	}
 
 	if d.id != nil {
@@ -593,5 +579,8 @@ func (d *DataChannel) collectStats(collector *statsReportCollector) {
 }
 
 func (d *DataChannel) setReadyState(r DataChannelState) {
-	d.readyState.Store(r)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.readyState = r
 }

@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/pion/rtp"
+	"github.com/pion/sdp/v3"
 )
 
 // RTPTransceiver represents a combination of an RTPSender and an RTPReceiver that share a common mid.
@@ -30,7 +31,7 @@ func (t *RTPTransceiver) Sender() *RTPSender {
 }
 
 // SetSender sets the RTPSender and Track to current transceiver
-func (t *RTPTransceiver) SetSender(s *RTPSender, track TrackLocal) error {
+func (t *RTPTransceiver) SetSender(s *RTPSender, track *Track) error {
 	t.setSender(s)
 	return t.setSendingTrack(track)
 }
@@ -100,7 +101,7 @@ func (t *RTPTransceiver) setDirection(d RTPTransceiverDirection) {
 	t.direction.Store(d)
 }
 
-func (t *RTPTransceiver) setSendingTrack(track TrackLocal) error {
+func (t *RTPTransceiver) setSendingTrack(track *Track) error {
 	t.Sender().setTrack(track)
 	if track == nil {
 		t.setSender(nil)
@@ -162,7 +163,7 @@ func satisfyTypeAndDirection(remoteKind RTPCodecType, remoteDirection RTPTransce
 
 // handleUnknownRTPPacket consumes a single RTP Packet and returns information that is helpful
 // for demuxing and handling an unknown SSRC (usually for Simulcast)
-func handleUnknownRTPPacket(buf []byte, midExtensionID, streamIDExtensionID uint8) (mid, rid string, payloadType PayloadType, err error) {
+func handleUnknownRTPPacket(buf []byte, sdesMidExtMap, sdesStreamIDExtMap *sdp.ExtMap) (mid, rid string, payloadType uint8, err error) {
 	rp := &rtp.Packet{}
 	if err = rp.Unmarshal(buf); err != nil {
 		return
@@ -172,12 +173,12 @@ func handleUnknownRTPPacket(buf []byte, midExtensionID, streamIDExtensionID uint
 		return
 	}
 
-	payloadType = PayloadType(rp.PayloadType)
-	if payload := rp.GetExtension(midExtensionID); payload != nil {
+	payloadType = rp.PayloadType
+	if payload := rp.GetExtension(uint8(sdesMidExtMap.Value)); payload != nil {
 		mid = string(payload)
 	}
 
-	if payload := rp.GetExtension(streamIDExtensionID); payload != nil {
+	if payload := rp.GetExtension(uint8(sdesStreamIDExtMap.Value)); payload != nil {
 		rid = string(payload)
 	}
 

@@ -4,8 +4,6 @@ package webrtc
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewAPI(t *testing.T) {
@@ -24,7 +22,7 @@ func TestNewAPI_Options(t *testing.T) {
 	s := SettingEngine{}
 	s.DetachDataChannels()
 	m := MediaEngine{}
-	assert.NoError(t, m.RegisterDefaultCodecs())
+	m.RegisterDefaultCodecs()
 
 	api := NewAPI(
 		WithSettingEngine(s),
@@ -35,7 +33,7 @@ func TestNewAPI_Options(t *testing.T) {
 		t.Error("Failed to set settings engine")
 	}
 
-	if len(api.mediaEngine.audioCodecs) == 0 || len(api.mediaEngine.videoCodecs) == 0 {
+	if len(api.mediaEngine.codecs) == 0 {
 		t.Error("Failed to set media engine")
 	}
 }

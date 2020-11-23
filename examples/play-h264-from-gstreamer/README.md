@@ -1,21 +1,36 @@
-# play-h264-from-gstreamer
-play-h264-from-gstreamer demonstrates how to send h264 video to your browser from a gstreamer pipeline.
+# play-h264-from-disk
+play-h264-from-disk demonstrates how to send h264 video to your browser from a file saved to disk.
+
+WARNING: It doesn't work in Chrome. Only Firefox has been tested successfully.
 
 
-## UI RTP gstreamer pipeline examples
-#### Linux
-ximagesrc: \
-`gst-launch-1.0 -v ximagesrc xname="Clock" show-pointer="false" ! videoscale ! video/x-raw,framerate=25/1,width=640,height=360 ! videoscale ! videoconvert ! video/x-raw, format=I420 ! x264enc key-int-max=25 tune=zerolatency bitrate=500 speed-preset=superfast ! rtph264pay ! udpsink host=127.0.0.1 port=5000`
+## Instructions
+### Download play-h264-from-disk
+```
+go get github.com/pion/webrtc/examples/play-h264-from-disk
+```
 
-videotestsrc: \
-`gst-launch-1.0 -v videotestsrc ! timeoverlay ! videoscale ! video/x-raw,framerate=25/1,width=640,height=360 ! videoscale ! videoconvert ! video/x-raw, format=I420 ! x264enc key-int-max=25 tune=zerolatency bitrate=500 speed-preset=superfast ! rtph264pay ! udpsink host=127.0.0.1 port=5000`
+### Create h264 named `output.h264` that contains a H264 track
+```
+./sample.sh
+```
 
+### Open play-h264-from-disk example page
+[jsfiddle.net](https://jsfiddle.net/234b95ja/) you should see two text-areas and a 'Start Session' button
 
-#### macOS
-avfvideosrc: \
-`gst-launch-1.0 -v avfvideosrc capture-screen=true ! videoscale ! video/x-raw,framerate=25/1,width=640,height=360 ! videoscale ! videoconvert ! video/x-raw, format=I420 ! x264enc key-int-max=25 tune=zerolatency bitrate=500 speed-preset=superfast ! rtph264pay ! udpsink host=127.0.0.1 port=5000`
+### Run play-h264-from-disk with your browsers SessionDescription as stdin
+The `output.h264` you created should be in the same directory as `play-h264-from-disk`. In the jsfiddle the top textarea is your browser, copy that and:
 
-videotestsrc: \
-`gst-launch-1.0 -v videotestsrc ! timeoverlay ! videoscale ! video/x-raw,framerate=25/1,width=640,height=360 ! videoscale ! videoconvert ! video/x-raw, format=I420 ! x264enc key-int-max=25 tune=zerolatency bitrate=500 speed-preset=superfast ! rtph264pay ! udpsink host=127.0.0.1 port=5000`
+#### Linux/macOS
+Run `echo $BROWSER_SDP | play-h264-from-disk`
+#### Windows
+1. Paste the SessionDescription into a file.
+1. Run `play-h264-from-disk < my_file`
+
+### Input play-h264-from-disk's SessionDescription into your browser
+Copy the text that `play-h264-from-disk` just emitted and copy into second text area
+
+### Hit 'Start Session' in jsfiddle, enjoy your video!
+A video should start playing in your browser above the input boxes. `play-h264-from-disk` will exit when the file reaches the end
 
 Congrats, you have used Pion WebRTC! Now start building something cool
