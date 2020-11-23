@@ -205,7 +205,6 @@ func (j *Jitter) WriteSample(s media.Sample) error {
 		j.buffer[p.Header.SequenceNumber] = p
 		j.mapSync.Unlock()
 		err := j.track.WriteRTP(p)
-		fmt.Println("timestamp", p.Header.Timestamp)
 		if err != nil {
 			return err
 		}

@@ -8,11 +8,9 @@ package gst
 */
 import "C"
 import (
-	"fmt"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"sync"
-	"time"
 	"unsafe"
 
 	"github.com/pion/webrtc/v3"
@@ -109,35 +107,21 @@ const (
 	videoClockRate = 90000
 	audioClockRate = 48000
 )
-var frameCount = 0
 //export goHandlePipelineBuffer
 func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.int, isVideo C.int, isAbr C.int) {
 
-
-	if GLOBAL_STATE == "abr" && isAbr == 1{
-		isIframe(buffer, bufferLen)
-		frameCount++
-		log.Info("is abr. frame count: ", frameCount)
-	}
-	if GLOBAL_STATE == "ui" && isAbr == 0{
-		isIframe(buffer, bufferLen)
-		frameCount++
-		log.Info("is ui. frame count: ", frameCount)
-	}
-
-	if (isAbr == 0 && GLOBAL_STATE == "switch_to_ui") {
-		if (isVideo == 1 && isIframe(buffer, bufferLen)) {
+	if isAbr == 0 && GLOBAL_STATE == "switch_to_ui" {
+		if isVideo == 1 && isIframe(buffer, bufferLen) {
 			GLOBAL_STATE = "ui"
 		}
-	} else if (isAbr == 1 && GLOBAL_STATE == "switch_to_abr") {
-		if (isVideo == 1 && isIframe(buffer, bufferLen)){
+	} else if isAbr == 1 && GLOBAL_STATE == "switch_to_abr" {
+		if isVideo == 1 && isIframe(buffer, bufferLen) {
 			GLOBAL_STATE = "abr"
 		}
 	}
-	if (isAbr == 1 && (GLOBAL_STATE == "ui" || GLOBAL_STATE == "switch_to_abr") || isAbr == 0 && (GLOBAL_STATE == "abr"|| GLOBAL_STATE == "switch_to_ui")) {
+	if isAbr == 1 && (GLOBAL_STATE == "ui" || GLOBAL_STATE == "switch_to_abr") || isAbr == 0 && (GLOBAL_STATE == "abr"|| GLOBAL_STATE == "switch_to_ui") {
 		return
 	}
-
 
 	var track *webrtc.Track
 	var samples uint32
@@ -150,32 +134,31 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 		track = pipeline.audioTrack
 	}
 
+	log.WithFields(
+		log.Fields{
+			"component": "gst",
+			"isVideo": isVideo,
+			"isAbr": isAbr,
+			"GLOBAL_STATE": GLOBAL_STATE,
+		}).Trace("writing sample")
+
 	if isVideo == 1{
-
-
-			if err := jitter.WriteSample(media.Sample{Data: C.GoBytes(buffer, bufferLen), Samples: samples}); err != nil && err != io.ErrClosedPipe {
-				panic(err)
-			}
-
-
-
-
+		if err := jitter.WriteSample(media.Sample{Data: C.GoBytes(buffer, bufferLen), Samples: samples}); err != nil && err != io.ErrClosedPipe {
+			panic(err)
+		}
 	} else {
 		if err := track.WriteSample(media.Sample{Data: C.GoBytes(buffer, bufferLen), Samples: samples}); err != nil && err != io.ErrClosedPipe {
 			panic(err)
 		}
 	}
 
-
 	C.free(buffer)
 }
 
 func isIframe(buffer unsafe.Pointer, bufferLen C.int) bool{
 	isIframe := false
-	log.Info(time.Now().UnixNano() / int64(time.Millisecond), "--- frame start ---")
 	emitNalus(C.GoBytes(buffer, bufferLen), func(nalu []byte) {
 		naluType := nalu[0] & naluTypeBitmask
-		fmt.Println(naluType)
 		if naluType == 5 {
 			isIframe = true
 		}
