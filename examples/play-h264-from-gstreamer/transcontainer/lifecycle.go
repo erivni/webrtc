@@ -2,7 +2,6 @@ package transcontainer
 
 import (
 	"fmt"
-	"github.com/pion/randutil"
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/gst"
 	signalling "github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/signallingclient"
@@ -49,8 +48,8 @@ type Lifecycle struct {
 	ConnectionId    string
 	PeerConnection  *webrtc.PeerConnection
 	MediaEngine     webrtc.MediaEngine
-	AudioTrack      *webrtc.Track
-	VideoTrack      *webrtc.Track
+	AudioTrack      *webrtc.TrackLocalStaticSample
+	VideoTrack      *webrtc.TrackLocalStaticSample
 	SignalingClient signalling.SignallingClient
 	AbrPipeline     *gst.Pipeline
 	UiPipeLine      *gst.Pipeline
@@ -94,15 +93,15 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 	tc.State = SETUP
 
 	tc.MediaEngine = webrtc.MediaEngine{}
-	err := tc.MediaEngine.PopulateFromSDP(offer)
+	err := tc.MediaEngine.RegisterDefaultCodecs()
 	if err != nil {
 		log.WithFields(
 			log.Fields{
 				"component": "lifecycle",
 				"lifecycleState": tc.State,
 				"connectionId": tc.ConnectionId,
-				"error": err.Error(),
-			}).Warn("failed to get a valid offer..")
+				"error": err,
+			}).Warn("failed to setup mediaEngine codecs..")
 		panic(err)
 	}
 
@@ -128,8 +127,7 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 		panic(err)
 	}
 
-
-	tc.VideoTrack, err = tc.PeerConnection.NewTrack(getPayloadType(tc.MediaEngine, webrtc.RTPCodecTypeVideo, "H264"), randutil.NewMathRandomGenerator().Uint32(), "video", "transcontainer")
+	tc.VideoTrack, err = webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: "video/h264"}, "video", "transcontainer")
 	if err != nil {
 		panic(err)
 	}
@@ -137,7 +135,7 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 		panic(err)
 	}
 
-	tc.AudioTrack, err = tc.PeerConnection.NewTrack(getPayloadType(tc.MediaEngine, webrtc.RTPCodecTypeAudio, "opus"), randutil.NewMathRandomGenerator().Uint32(), "audio", "transcontainer")
+	tc.AudioTrack, err = webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: "audio/opus"}, "audio", "transcontainer")
 	if err != nil {
 		panic(err)
 	}
@@ -287,7 +285,7 @@ func (tc *Lifecycle) Stream(){
 	tc.AbrPipeline = &gst.Pipeline{}
 	tc.AbrPipeline = gst.CreatePipeline(pipelineStr, tc.AudioTrack, tc.VideoTrack, "abr")
 
-	pipelineStrUI := fmt.Sprintf("souphttpsrc location=http://hyperscale.coldsnow.net:8080/bbb_360_ui.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
+	pipelineStrUI := fmt.Sprintf("udpsrc port=5000 caps = \"application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96, format=(string)I420\" !  rtph264depay ! video/x-h264,stream-format=byte-stream,alignment=au,framerate=25/1 ! appsink name=video")
 	log.WithFields(
 		log.Fields{
 			"component": "lifecycle",
@@ -325,10 +323,10 @@ func (tc *Lifecycle) Stop(){
 		}).Info("stopping transcontainer lifecycle and starting again.")
 
 	if tc.AbrPipeline != nil {
-		tc.AbrPipeline.Pause()
+		tc.AbrPipeline.Stop()
 	}
 	if tc.UiPipeLine != nil {
-		tc.UiPipeLine.Pause()
+		tc.UiPipeLine.Stop()
 	}
 	if tc.PeerConnection != nil {
 		err := tc.PeerConnection.Close()
@@ -344,16 +342,7 @@ func (tc *Lifecycle) Stop(){
 	gst.ResetGlobalState()
 }
 
-func (tc *Lifecycle) Restart(){
+func (tc *Lifecycle) Restart() {
 	tc.Stop()
 	tc.Start()
-}
-
-func getPayloadType(m webrtc.MediaEngine, codecType webrtc.RTPCodecType, codecName string) uint8 {
-	for _, codec := range m.GetCodecsByKind(codecType) {
-		if codec.Name == codecName {
-			return codec.PayloadType
-		}
-	}
-	panic(fmt.Sprintf("Remote peer does not support %s", codecName))
 }

@@ -14,7 +14,7 @@ import (
 type Jitter struct {
 	buffer map[uint16]*rtp.Packet
 	peerConnection *webrtc.PeerConnection
-	track *webrtc.Track
+	track *webrtc.TrackLocalStaticSample
 	segmentStart uint16
 	segmentEnd uint16
 	currentSN uint16
@@ -27,7 +27,7 @@ type Jitter struct {
 	stop  bool
 }
 
-func NewJitter(pc *webrtc.PeerConnection, t *webrtc.Track) *Jitter {
+func NewJitter(pc *webrtc.PeerConnection, t *webrtc.TrackLocalStaticSample) *Jitter {
 	jitter := &Jitter{
 		buffer: make(map[uint16]*rtp.Packet),
 		peerConnection: pc,
@@ -99,7 +99,7 @@ func (j *Jitter) StartRTCP(){
 						if ok == false{
 							log.Warn("did not find packet with SN ", nack.PacketID, " in jitter")
 						}else{
-							j.track.WriteRTP(packet)
+							j.track.RtpTrack.WriteRTP(packet)
 						}
 					}
 				case *rtcp.ReceiverReport:
@@ -185,7 +185,15 @@ func (j *Jitter) WriteSample(s media.Sample) error {
 	if j.stop == true{
 		return nil
 	}
-	packets := j.track.Packetizer().Packetize(s.Data, s.Samples)
+
+	samples := s.Duration.Seconds() * j.track.ClockRate
+	if j.track.Packetizer == nil{
+		fmt.Println(" ---------------- packetizer is NULL!!! ---------------")
+		return nil
+	}
+	
+	packets := j.track.Packetizer.Packetize(s.Data, uint32(samples))
+
 	//fmt.Println("packets in frame: ", len(packets))
 
 	// prefer sending packets over cleaning packets
@@ -204,7 +212,7 @@ func (j *Jitter) WriteSample(s media.Sample) error {
 		j.mapSync.Lock()
 		j.buffer[p.Header.SequenceNumber] = p
 		j.mapSync.Unlock()
-		err := j.track.WriteRTP(p)
+		err := j.track.RtpTrack.WriteRTP(p)
 		if err != nil {
 			return err
 		}

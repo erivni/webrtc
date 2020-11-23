@@ -13,6 +13,7 @@ void gstreamer_send_start_pipeline(GstElement *pipeline, int isAbr);
 
 void gstreamer_send_play_pipeline(GstElement *pipeline);
 void gstreamer_send_pause_pipeline(GstElement *pipeline);
+void gstreamer_send_stop_pipeline(GstElement *pipeline);
 void gstreamer_send_seek(GstElement *pipeline, int64_t seek_pos);
 
 void gstreamer_send_start_mainloop(void);
