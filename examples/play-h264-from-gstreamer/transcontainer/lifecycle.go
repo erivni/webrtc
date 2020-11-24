@@ -219,8 +219,23 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 					"dataChannelLabel": d.Label(),
 				}).Info("got new message: ", string(msg.Data))
 
-			if gst.GLOBAL_STATE != string(msg.Data) {
-				gst.GLOBAL_STATE = "switch_to_" + string(msg.Data)
+			switch string(msg.Data) {
+			case "abr", "ui": {
+				if gst.GLOBAL_STATE != string(msg.Data) {
+					gst.GLOBAL_STATE = "switch_to_" + string(msg.Data)
+				}
+				break;
+			}
+			default:
+				log.WithFields(
+					log.Fields{
+						"component": "lifecycle",
+						"lifecycleState": tc.State,
+						"connectionId": tc.ConnectionId,
+						"dataChannelId": d.ID(),
+						"dataChannelLabel": d.Label(),
+					}).Warn("got unknown message: ", string(msg.Data))
+				break;
 			}
 		})
 	})
