@@ -159,8 +159,97 @@ func (signalingClient *SignallingClient) GetOffer(connectionId string) (*webrtc.
 	return &offer, nil
 }
 
-func (signalingClient *SignallingClient) SendAnswer(connectionId string, answer webrtc.SessionDescription) error {
+func (signalingClient *SignallingClient) SendOffer(offer webrtc.SessionDescription) (string, error) {
 
+	requestBody, err := json.Marshal(struct{
+		Type webrtc.SDPType `json:"type"`
+		SDP  string  `json:"sdp"`
+		DeviceId    string `json:"deviceId"`
+	} {
+		Type: offer.Type,
+		SDP: offer.SDP,
+		DeviceId: "transcontainer",
+	})
+
+	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"component": "signallingClient",
+				"error": err.Error(),
+			}).Error("failed to parse webrtc offer to string")
+		return "", err
+	}
+
+	url := signalingClient.Url + "/signaling/1.0/connections/"
+	response, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"component": "signallingClient",
+				"url": url,
+				"error": err.Error(),
+			}).Error("failed to post an offer")
+		return "", err
+	}
+
+	if response.StatusCode != http.StatusCreated {
+		log.WithFields(
+			log.Fields{
+				"component": "signallingClient",
+				"url": url,
+				"httpCode": response.StatusCode,
+			}).Error("failed to post an offer")
+		return "", errors.New("failed to send offer")
+	}
+
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"component": "signallingClient",
+				"url": url,
+				"httpCode": response.StatusCode,
+				"error": err.Error(),
+			}).Error("failed to read sendOffer response")
+		return "", err
+	}
+
+	connection := map[string]string{}
+	err = json.Unmarshal(body, &connection)
+	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"component": "signallingClient",
+				"url": url,
+				"httpCode": response.StatusCode,
+				"error": err.Error(),
+			}).Error("failed to parse sendOffer response")
+		return "", err
+	}
+
+	if _, ok := connection["connectionId"]; !ok {
+		log.WithFields(
+			log.Fields{
+				"component": "signallingClient",
+				"url": url,
+				"httpCode": response.StatusCode,
+				"error": err.Error(),
+			}).Error("failed to get connectionId from connection response")
+		return "", err
+	}
+
+	log.WithFields(
+		log.Fields{
+			"component": "signallingClient",
+			"url": url,
+			"httpCode": response.StatusCode,
+			"connectionId": connection["connectionId"],
+		}).Info("got a valid connectionId")
+
+	return connection["connectionId"], nil
+}
+
+func (signalingClient *SignallingClient) SendAnswer(connectionId string, answer webrtc.SessionDescription) error {
 
 	requestBody, err := json.Marshal(answer)
 	if err != nil {
@@ -203,6 +292,95 @@ func (signalingClient *SignallingClient) SendAnswer(connectionId string, answer 
 		}).Info("posted an answer successfully")
 
 	return nil
+}
+
+func (signalingClient *SignallingClient) GetAnswer(connectionId string, tries int) (*webrtc.SessionDescription, error) {
+
+	url := signalingClient.Url + "/signaling/1.0/connections/" + connectionId + "/answer"
+	response, err := http.Get(url)
+	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"component": "signallingClient",
+				"url": url,
+				"connectionId": connectionId,
+				"error": err,
+			}).Error("failed to get an answer for connectionId")
+		time.Sleep(RETRY_INTERVAL * time.Second)
+		tries--
+		if tries == 0 {
+			log.WithFields(
+				log.Fields{
+					"component":    "signallingClient",
+					"url":          url,
+					"connectionId": connectionId,
+					"error":        err,
+				}).Error("failed to get an answer for connectionId. giving up..")
+			return nil, err
+		}
+		return signalingClient.GetAnswer(connectionId, tries)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		log.WithFields(
+			log.Fields{
+				"component": "signallingClient",
+				"url": url,
+				"httpCode": response.StatusCode,
+				"connectionId": connectionId,
+				"error": err,
+			}).Error("failed to get a valid response for getAnswer")
+		time.Sleep(RETRY_INTERVAL * time.Second)
+		tries--
+		if tries == 0 {
+			log.WithFields(
+				log.Fields{
+					"component":    "signallingClient",
+					"url":          url,
+					"connectionId": connectionId,
+					"error":        err,
+				}).Error("failed to get an answer for connectionId. giving up..")
+			return nil, err
+		}
+		return signalingClient.GetAnswer(connectionId, tries)
+	}
+
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"component": "signallingClient",
+				"url": url,
+				"httpCode": response.StatusCode,
+				"connectionId": connectionId,
+				"error": err.Error(),
+			}).Error("failed to read answer response")
+		return nil, err
+	}
+
+	var answer webrtc.SessionDescription
+	err = json.Unmarshal(body, &answer)
+	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"component": "signallingClient",
+				"url": url,
+				"httpCode": response.StatusCode,
+				"connectionId": connectionId,
+				"error": err.Error(),
+			}).Error("failed to convert response to a valid webrtc answer")
+		return nil, err
+	}
+
+	log.WithFields(
+		log.Fields{
+			"component": "signallingClient",
+			"url": url,
+			"httpCode": response.StatusCode,
+			"connectionId": connectionId,
+		}).Info("got a valid answer")
+
+	return &answer, nil
 }
 
 func (signalingClient *SignallingClient) GetIce(connectionId string, pc *webrtc.PeerConnection) error {
