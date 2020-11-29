@@ -9,6 +9,7 @@ import (
 	"github.com/pion/webrtc/v3/pkg/rtpbuffer"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"strings"
 )
 
 type State uint8
@@ -145,7 +146,7 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 		panic(err)
 	}
 
-	tc.VideoJitter = rtpbuffer.NewJitter(tc.PeerConnection, tc.VideoTrack)
+	tc.VideoJitter = rtpbuffer.NewJitter(tc.PeerConnection, tc.VideoTrack, strings.ToLower(os.Getenv("FORWARD_RTP")) == "true")
 	gst.SetJitter(tc.VideoJitter)
 
 	// events registration

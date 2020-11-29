@@ -7,6 +7,7 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media"
 	log "github.com/sirupsen/logrus"
+	"net"
 	"sync"
 	"time"
 )
@@ -24,10 +25,12 @@ type Jitter struct {
 	firCount int
 	rembCount int
 	receiverTotalLost uint32
+	forwardRtp bool
+	udpCon net.Conn
 	stop  bool
 }
 
-func NewJitter(pc *webrtc.PeerConnection, t *webrtc.Track) *Jitter {
+func NewJitter(pc *webrtc.PeerConnection, t *webrtc.Track, forwardRtp bool) *Jitter {
 	jitter := &Jitter{
 		buffer: make(map[uint16]*rtp.Packet),
 		peerConnection: pc,
@@ -41,8 +44,18 @@ func NewJitter(pc *webrtc.PeerConnection, t *webrtc.Track) *Jitter {
 		rembCount: int(0),
 		receiverTotalLost: uint32(0),
 		mapSync: sync.RWMutex{},
+		forwardRtp: forwardRtp,
 		stop: false}
+	if forwardRtp == true{
+		jitter.initUdp()
+	}
+
 	return  jitter
+}
+
+func (j *Jitter) initUdp (){
+	conn, _ := net.Dial("udp", "127.0.0.1:4002")
+	j.udpCon = conn
 }
 
 func (j *Jitter) Close(){
@@ -54,6 +67,10 @@ func (j *Jitter) Close(){
 		delete(j.buffer, k)
 	}
 	j.buffer = nil
+
+	if closeErr := j.udpCon.Close(); closeErr != nil {
+		log.Error("error closing udp connection")
+	}
 }
 
 func (j *Jitter) StartRTCP(){
@@ -131,16 +148,6 @@ func (j *Jitter) StartRTCP(){
 						"size": len(j.buffer),
 					}).Info("cleanup: first cleanup. setting segmentEnd")
 			}else{
-				/*
-				log.WithFields(
-					log.Fields{
-						"component": "jitter",
-						"segmentStart": j.segmentStart,
-						"segmentEnd": j.segmentEnd,
-						"size": len(j.buffer),
-					}).Info("cleanup. about to delete ", j.segmentEnd - j.segmentStart, " entries")
-
-				 */
 
 				// clear previous segment
 				for i := j.segmentStart; i<=j.segmentEnd; i++{
@@ -204,13 +211,27 @@ func (j *Jitter) WriteSample(s media.Sample) error {
 		j.mapSync.Lock()
 		j.buffer[p.Header.SequenceNumber] = p
 		j.mapSync.Unlock()
-		err := j.track.WriteRTP(p)
-		if err != nil {
-			return err
+		if err := j.track.WriteRTP(p); err != nil{
+			log.WithFields(
+				log.Fields{
+					"component": "jitter",
+					"rtp SN": p.SequenceNumber,
+				}).Error("error sending rtp packet")
+		}
+
+		if j.forwardRtp{
+			pBytes, err := p.Marshal()
+			_, err = j.udpCon.Write(pBytes)
+			if opError, ok := err.(*net.OpError); ok && opError.Err.Error() == "write: connection refused" {
+				continue
+			}
 		}
 	}
-
 
 	return nil
 }
 
+type udpConn struct {
+	conn *net.UDPConn
+	port int
+}
