@@ -280,7 +280,7 @@ func NewRTPH264Codec(payloadType uint8, clockrate uint32) *RTPCodec {
 		H264,
 		clockrate,
 		0,
-		"level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
+		"level-asymmetry-allowed=1;packetization-mode=2;profile-level-id=42001f",
 		payloadType,
 		&codecs.H264Payloader{})
 	return c
