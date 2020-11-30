@@ -106,7 +106,16 @@ func (m *MediaEngine) PopulateFromSDP(sd SessionDescription) error {
 			case strings.EqualFold(payloadCodec.Name, VP9):
 				codec = NewRTPVP9Codec(payloadType, payloadCodec.ClockRate)
 			case strings.EqualFold(payloadCodec.Name, H264):
-				codec = NewRTPH264Codec(payloadType, payloadCodec.ClockRate)
+				// in the h264 codec, read the Fmtp from the offer
+				// if packetization-mode is set to 2 we're in the interleaved mode
+				// and setup an H264 interleaved codec
+				// in other cases we use the H264 regular codec: non interleaved
+				packetizationMode := m.getPacketizationModeFromFmtp(payloadCodec.Fmtp)
+				if packetizationMode == 2{
+					codec = NewRTPH264InterleavedCodec(payloadType, payloadCodec.ClockRate)
+				}else{
+					codec = NewRTPH264Codec(payloadType, payloadCodec.ClockRate)
+				}
 			default:
 				// ignoring other codecs
 				continue
@@ -117,6 +126,54 @@ func (m *MediaEngine) PopulateFromSDP(sd SessionDescription) error {
 		}
 	}
 	return nil
+}
+
+func (m *MediaEngine) GetPacketizationMode(sd SessionDescription) (int, error) {
+	sdp := sdp.SessionDescription{}
+	if err := sdp.Unmarshal([]byte(sd.SDP)); err != nil {
+		return -1, err
+	}
+
+	for _, md := range sdp.MediaDescriptions {
+		if md.MediaName.Media != mediaNameAudio && md.MediaName.Media != mediaNameVideo {
+			continue
+		}
+
+		for _, format := range md.MediaName.Formats {
+			pt, err := strconv.Atoi(format)
+			if err != nil {
+				return -1, errMediaEngineParseError
+			}
+
+			payloadType := uint8(pt)
+			payloadCodec, err := sdp.GetCodecForPayloadType(payloadType)
+			if err != nil {
+				return -1, fmt.Errorf("%w: codec for payload type %d", errMediaEngineCodecNotFound, payloadType)
+			}
+
+			if strings.EqualFold(payloadCodec.Name, H264){
+				return m.getPacketizationModeFromFmtp(payloadCodec.Fmtp), nil
+			}
+		}
+	}
+	// default
+	return 1, nil
+}
+
+func (m *MediaEngine) getPacketizationModeFromFmtp(fmtp string) int{
+	s := strings.Split(fmtp, ";")
+
+	for _, part := range s{
+		fragment := strings.Split(part, "=")
+		if fragment[0] == "packetization-mode"{
+			pm, err := strconv.Atoi(fragment[1]); if err != nil{
+				return 1
+			}else{
+				return pm
+			}
+		}
+	}
+	return 1
 }
 
 // GetCodecsByName returns all codecs by name that are supported by m.
@@ -280,9 +337,22 @@ func NewRTPH264Codec(payloadType uint8, clockrate uint32) *RTPCodec {
 		H264,
 		clockrate,
 		0,
-		"level-asymmetry-allowed=1;packetization-mode=2;profile-level-id=42001f",
+		"level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f",
 		payloadType,
 		&codecs.H264Payloader{})
+	return c
+}
+
+// NewRTPH264Codec is a helper to create an H264 interleaved codec
+// in the 'interleaved' mode packetization-mode=2
+func NewRTPH264InterleavedCodec(payloadType uint8, clockrate uint32) *RTPCodec {
+	c := NewRTPCodec(RTPCodecTypeVideo,
+		H264,
+		clockrate,
+		0,
+		"level-asymmetry-allowed=1;packetization-mode=2;profile-level-id=42001f",
+		payloadType,
+		&codecs.H264InterleavedPayloader{})
 	return c
 }
 

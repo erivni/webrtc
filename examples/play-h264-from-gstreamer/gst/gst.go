@@ -8,6 +8,7 @@ package gst
 */
 import "C"
 import (
+	"encoding/binary"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"sync"
@@ -31,6 +32,7 @@ type Pipeline struct {
 }
 
 var jitter = &rtpbuffer.Jitter{}
+var packetizationMode = 1
 
 var GLOBAL_STATE="ui"
 
@@ -39,6 +41,10 @@ var pipelinesLock sync.Mutex
 
 func SetJitter(j *rtpbuffer.Jitter){
 	jitter = j
+}
+
+func SetPacketizationMode(mode int){
+	packetizationMode = mode
 }
 
 func ResetGlobalState(){
@@ -107,6 +113,9 @@ const (
 	videoClockRate = 90000
 	audioClockRate = 48000
 )
+
+var don = uint16(0)
+var donSize = 2
 //export goHandlePipelineBuffer
 func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.int, isVideo C.int, isAbr C.int) {
 
@@ -143,9 +152,23 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 		}).Trace("writing sample")
 
 	if isVideo == 1{
-		if err := jitter.WriteSample(media.Sample{Data: C.GoBytes(buffer, bufferLen), Samples: samples}); err != nil && err != io.ErrClosedPipe {
-			panic(err)
+		var frame = C.GoBytes(buffer, bufferLen)
+
+		// in interleaved mode we calculate the DON and send it down to the packetizer
+		if packetizationMode == 2 {
+			frameWithDon := make([]byte, 2+len(frame))
+			binary.BigEndian.PutUint16(frameWithDon[donSize:], don)
+			copy(frameWithDon[donSize:], frame)
+			if err := jitter.WriteSample(media.Sample{Data: frameWithDon, Samples: samples}); err != nil && err != io.ErrClosedPipe {
+				panic(err)
+			}
+			don++
+		} else{
+			if err := jitter.WriteSample(media.Sample{Data: frame, Samples: samples}); err != nil && err != io.ErrClosedPipe {
+				panic(err)
+			}
 		}
+
 	} else {
 		if err := track.WriteSample(media.Sample{Data: C.GoBytes(buffer, bufferLen), Samples: samples}); err != nil && err != io.ErrClosedPipe {
 			panic(err)
