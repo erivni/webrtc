@@ -9,6 +9,7 @@ package gst
 import "C"
 import (
 	"encoding/binary"
+	"github.com/pion/rtp/codecs"
 	log "github.com/sirupsen/logrus"
 	"io"
 	"sync"
@@ -32,7 +33,8 @@ type Pipeline struct {
 }
 
 var jitter = &rtpbuffer.Jitter{}
-var packetizationMode = 1
+var uiPacketizationMode = 1
+var abrPacketizationMode = 1
 
 var GLOBAL_STATE="ui"
 
@@ -43,9 +45,6 @@ func SetJitter(j *rtpbuffer.Jitter){
 	jitter = j
 }
 
-func SetPacketizationMode(mode int){
-	packetizationMode = mode
-}
 
 func ResetGlobalState(){
 	GLOBAL_STATE = "ui"
@@ -61,6 +60,17 @@ func CreatePipeline(pipelineStr string, audioTrack, videoTrack *webrtc.Track, pi
 
 	// hls no reencocde
 	//pipelineStr := fmt.Sprintf("souphttpsrc location=\"%s\" ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio", containerPath)
+
+	// inspect the payloader type to determine the packetization mode
+	_, ok := videoTrack.Codec().Payloader.(*codecs.H264InterleavedPayloader)
+	if ok{
+		if pipelineType == "ui"{
+			uiPacketizationMode = 2
+		}
+		if pipelineType == "abr"{
+			abrPacketizationMode = 2
+		}
+	}
 
 	pipelineStrUnsafe := C.CString(pipelineStr)
 	defer C.free(unsafe.Pointer(pipelineStrUnsafe))
@@ -143,6 +153,13 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 		track = pipeline.audioTrack
 	}
 
+	var packetizationMode = 1
+	if isVideo == 1 && isAbr == 1{
+		packetizationMode = abrPacketizationMode
+	}else if isVideo == 1 && isAbr == 0{
+		packetizationMode = uiPacketizationMode
+	}
+
 	log.WithFields(
 		log.Fields{
 			"component": "gst",
@@ -156,7 +173,7 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 
 		// in interleaved mode we calculate the DON and send it down to the packetizer
 		if packetizationMode == 2 {
-			frameWithDon := make([]byte, 2+len(frame))
+			frameWithDon := make([]byte, donSize + len(frame))
 			binary.BigEndian.PutUint16(frameWithDon[donSize:], don)
 			copy(frameWithDon[donSize:], frame)
 			if err := jitter.WriteSample(media.Sample{Data: frameWithDon, Samples: samples}); err != nil && err != io.ErrClosedPipe {

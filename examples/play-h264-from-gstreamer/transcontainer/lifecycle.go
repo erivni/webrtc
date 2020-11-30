@@ -107,9 +107,6 @@ func (tc *Lifecycle) Setup(offer webrtc.SessionDescription){
 		panic(err)
 	}
 
-	var packetizationMode, _ = tc.MediaEngine.GetPacketizationMode(offer)
-	gst.SetPacketizationMode(packetizationMode)
-
 	settingEngine := webrtc.SettingEngine{}
 	err = settingEngine.SetEphemeralUDPPortRange(50000, 50002)
 	if err != nil {

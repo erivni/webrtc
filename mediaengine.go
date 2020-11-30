@@ -128,38 +128,6 @@ func (m *MediaEngine) PopulateFromSDP(sd SessionDescription) error {
 	return nil
 }
 
-func (m *MediaEngine) GetPacketizationMode(sd SessionDescription) (int, error) {
-	sdp := sdp.SessionDescription{}
-	if err := sdp.Unmarshal([]byte(sd.SDP)); err != nil {
-		return -1, err
-	}
-
-	for _, md := range sdp.MediaDescriptions {
-		if md.MediaName.Media != mediaNameAudio && md.MediaName.Media != mediaNameVideo {
-			continue
-		}
-
-		for _, format := range md.MediaName.Formats {
-			pt, err := strconv.Atoi(format)
-			if err != nil {
-				return -1, errMediaEngineParseError
-			}
-
-			payloadType := uint8(pt)
-			payloadCodec, err := sdp.GetCodecForPayloadType(payloadType)
-			if err != nil {
-				return -1, fmt.Errorf("%w: codec for payload type %d", errMediaEngineCodecNotFound, payloadType)
-			}
-
-			if strings.EqualFold(payloadCodec.Name, H264){
-				return m.getPacketizationModeFromFmtp(payloadCodec.Fmtp), nil
-			}
-		}
-	}
-	// default
-	return 1, nil
-}
-
 func (m *MediaEngine) getPacketizationModeFromFmtp(fmtp string) int{
 	s := strings.Split(fmtp, ";")
 
