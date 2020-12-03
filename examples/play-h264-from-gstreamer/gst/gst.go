@@ -122,6 +122,7 @@ func (p *Pipeline) SeekToTime(seekPos int64) {
 const (
 	videoClockRate = 90000
 	audioClockRate = 48000
+	maxDonValue = ^uint16(0)
 )
 
 var don = uint16(0)
@@ -179,7 +180,7 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 			if err := jitter.WriteSample(media.Sample{Data: frameWithDon, Samples: samples}); err != nil && err != io.ErrClosedPipe {
 				panic(err)
 			}
-			don++
+			don = (don+1) % maxDonValue
 		} else{
 			if err := jitter.WriteSample(media.Sample{Data: frame, Samples: samples}); err != nil && err != io.ErrClosedPipe {
 				panic(err)
