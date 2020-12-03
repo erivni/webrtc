@@ -5,7 +5,6 @@ import (
 	"github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/transcontainer"
 	log "github.com/sirupsen/logrus"
 	"os"
-	"time"
 )
 
 func main() {
@@ -24,29 +23,24 @@ func main() {
 	log.SetLevel(log.DebugLevel)
 
 
-	tc := transcontainer.NewLifecycle(*signalling.NewSignallingClient("http://hyperscale.coldsnow.net:57778"))
-	defer Defer(tc)
+	lifecycle := transcontainer.NewLifecycle(*signalling.NewSignallingClient("http://localhost:57778"))
+	defer Defer()
 
-	tc.Start()
+	lifecycle.Start()
 
 	// Block forever
 	select {}
 }
 
-func Defer(tc *transcontainer.Lifecycle) {
+func Defer() {
 	if err := recover(); err != nil {
 		log.WithFields(
 			log.Fields{
 				"component": "main",
-				"lifecycleState": tc.State,
-				"connectionId": tc.ConnectionId,
 				"error": err,
 			}).Error("Defer(): caught a panic!")
 
-		time.Sleep(10 * time.Second)
-
-		defer Defer(tc)
-		tc.Restart()
+		panic(err)
 	}
 }
 

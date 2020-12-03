@@ -1,5 +1,5 @@
 /* eslint-env browser */
-let signallingServer = "http://hyperscale.coldsnow.net:57778";
+let signallingServer = "http://localhost:57778";
 let pc = new RTCPeerConnection({
   iceServers: [
     {

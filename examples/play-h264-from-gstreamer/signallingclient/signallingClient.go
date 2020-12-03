@@ -305,7 +305,7 @@ func (signalingClient *SignallingClient) GetAnswer(connectionId string, tries in
 				"url": url,
 				"connectionId": connectionId,
 				"error": err,
-			}).Error("failed to get an answer for connectionId")
+			}).Warn("failed to get an answer for connectionId")
 		time.Sleep(RETRY_INTERVAL * time.Second)
 		tries--
 		if tries == 0 {
@@ -316,7 +316,7 @@ func (signalingClient *SignallingClient) GetAnswer(connectionId string, tries in
 					"connectionId": connectionId,
 					"error":        err,
 				}).Error("failed to get an answer for connectionId. giving up..")
-			return nil, err
+			return nil, errors.New("failed to get answer after retires")
 		}
 		return signalingClient.GetAnswer(connectionId, tries)
 	}
@@ -328,8 +328,7 @@ func (signalingClient *SignallingClient) GetAnswer(connectionId string, tries in
 				"url": url,
 				"httpCode": response.StatusCode,
 				"connectionId": connectionId,
-				"error": err,
-			}).Error("failed to get a valid response for getAnswer")
+			}).Warn("failed to get a valid response for getAnswer")
 		time.Sleep(RETRY_INTERVAL * time.Second)
 		tries--
 		if tries == 0 {
@@ -338,9 +337,8 @@ func (signalingClient *SignallingClient) GetAnswer(connectionId string, tries in
 					"component":    "signallingClient",
 					"url":          url,
 					"connectionId": connectionId,
-					"error":        err,
 				}).Error("failed to get an answer for connectionId. giving up..")
-			return nil, err
+			return nil, errors.New("failed to get answer after retires")
 		}
 		return signalingClient.GetAnswer(connectionId, tries)
 	}
