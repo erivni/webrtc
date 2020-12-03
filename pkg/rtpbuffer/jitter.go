@@ -68,8 +68,10 @@ func (j *Jitter) Close(){
 	}
 	j.buffer = nil
 
-	if closeErr := j.udpCon.Close(); closeErr != nil {
-		log.Error("error closing udp connection")
+	if j.forwardRtp == true{
+		if closeErr := j.udpCon.Close(); closeErr != nil {
+			log.Error("error closing udp connection")
+		}
 	}
 }
 
