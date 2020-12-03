@@ -175,7 +175,7 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 		// in interleaved mode we calculate the DON and send it down to the packetizer
 		if packetizationMode == 2 {
 			frameWithDon := make([]byte, donSize + len(frame))
-			binary.BigEndian.PutUint16(frameWithDon[donSize:], don)
+			binary.BigEndian.PutUint16(frameWithDon[:2], don)
 			copy(frameWithDon[donSize:], frame)
 			if err := jitter.WriteSample(media.Sample{Data: frameWithDon, Samples: samples}); err != nil && err != io.ErrClosedPipe {
 				panic(err)
