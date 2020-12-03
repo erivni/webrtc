@@ -111,6 +111,7 @@ func (m *MediaEngine) PopulateFromSDP(sd SessionDescription) error {
 				// and setup an H264 interleaved codec
 				// in other cases we use the H264 regular codec: non interleaved
 				packetizationMode := m.getPacketizationModeFromFmtp(payloadCodec.Fmtp)
+				fmt.Println("packetization mode is ",packetizationMode)
 				if packetizationMode == 2{
 					codec = NewRTPH264InterleavedCodec(payloadType, payloadCodec.ClockRate)
 				}else{
