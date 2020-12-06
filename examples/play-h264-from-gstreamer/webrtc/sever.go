@@ -40,13 +40,13 @@ func NewWebRTCServer(signallingClient signalling.SignallingClient, onMessageHand
 
 
 func (server *WebRTCServer) Connect() {
-	server.changeState(INITIATE)
-
 	var err error
 	server.ConnectionId, err = server.signallingClient.GetQueue()
 	if err != nil {
 		panic(err)
 	}
+
+	server.changeState(INITIATE)
 
 	offer, err := server.signallingClient.GetOffer(server.ConnectionId)
 	if err != nil {
@@ -182,7 +182,11 @@ func (server *WebRTCServer) Connect() {
 					"dataChannelLabel": d.Label(),
 				}).Debug("got new message: ", string(msg.Data))
 
-			server.OnMessageHandler(msg)
+			// TODO: this is null occasionally
+			if server.OnMessageHandler != nil{
+				server.OnMessageHandler(msg)
+			}
+
 		})
 	})
 
@@ -213,6 +217,9 @@ func (server *WebRTCServer) Connect() {
 }
 
 func (server *WebRTCServer) Disconnect() {
+	if server.peerConnection == nil{
+		return
+	}
 	server.peerConnection.Close()
 	server.changeState(IDLE)
 	server.ConnectionId = ""
@@ -242,12 +249,16 @@ func (server *WebRTCServer) WriteSample(sample media.Sample, sampleType utils.Sa
 
 	if sampleType == utils.VIDEO {
 		server.videoJitter.WriteSample(sample)
+		//server.videoTrack.WriteSample(sample)
 	} else {
 		server.audioTrack.WriteSample(sample)
 	}
 }
 
 func (server *WebRTCServer) changeState(state State) {
+	if state == server.State{
+		return
+	}
 	server.State = state
 	if server.OnStateChangeHandler != nil {
 		server.OnStateChangeHandler(state)

@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/pion/rtcp"
-	"github.com/pion/rtp"
 	pion "github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/gst"
 	"github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/utils"
@@ -104,7 +103,7 @@ func (t *Transcontainer) Start() {
 			"streamingState":	t.StreamingState,
 		}).Info("starting transcontainer")
 
-	t.uiConnection.SetListeners(t.processUiMessage, t.processSample, t.processRTP)
+	t.uiConnection.SetListeners(t.processUiMessage, t.processSample)
 	t.clientConnection.SetListeners(t.processClientMessage, t.processRTCP)
 	t.abrPlayer.OnSampleHandler = t.processSample
 
@@ -113,28 +112,6 @@ func (t *Transcontainer) Start() {
 	// start reading from ui connection
 	t.uiConnection.StartReadingRTPs()
 	t.abrPlayer.Start()
-}
-
-func (t *Transcontainer) processRTP(packet *rtp.Packet){
-
-	if t.StreamingState == ABR {
-		return
-	} else if t.StreamingState == SWITCH_TO_UI {
-		if isKeyFrame(packet.Payload) {
-			t.changeStreamingState(UI)
-		} else {
-			return
-		}
-	}
-
-	log.WithFields(
-		log.Fields{
-			"component": 		"transcontainer",
-			"state": 			t.State,
-			"steamingState": 	t.StreamingState,
-		}).Trace("sending rtp...")
-
-	t.clientConnection.WriteRTP(packet)
 }
 
 func (t *Transcontainer) processRTCP(packets []rtcp.Packet){
@@ -250,6 +227,9 @@ func (t *Transcontainer) Stop() {
 }
 
 func (t *Transcontainer) changeState(state State) {
+	if state == t.State{
+		return
+	}
 	t.State = state
 	if t.OnStateChangeHandler != nil {
 		t.OnStateChangeHandler(state)
@@ -257,6 +237,10 @@ func (t *Transcontainer) changeState(state State) {
 }
 
 func (t *Transcontainer) changeStreamingState(state StreamingState) {
+	if state == t.StreamingState{
+		return
+	}
+
 	t.StreamingState = state
 
 	log.WithFields(

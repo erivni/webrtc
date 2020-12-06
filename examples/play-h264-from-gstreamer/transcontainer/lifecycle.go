@@ -19,8 +19,7 @@ type Lifecycle struct {
 
 func NewLifecycle(signallingClient signalling.SignallingClient) *Lifecycle {
 	lifecycle := &Lifecycle{}
-	//lifecycle.uiConnection = webrtc.NewWebRTCClient(signalling, nil, lifecycle.OnUiStateChange, nil )
-	lifecycle.uiConnection = webrtc.NewWebRTCClient(*signalling.NewSignallingClient("http://localhost:57779"), nil, lifecycle.OnUiStateChange, nil )
+	lifecycle.uiConnection = webrtc.NewWebRTCClient(signallingClient, nil, lifecycle.OnUiStateChange, nil )
 	lifecycle.clientConnection = webrtc.NewWebRTCServer(signallingClient, nil, lifecycle.OnClientStateChange, nil)
 	lifecycle.transcontainer = NewTranscontainer(lifecycle.uiConnection, lifecycle.clientConnection, lifecycle.abrPlayer, nil, nil)
 	return lifecycle
