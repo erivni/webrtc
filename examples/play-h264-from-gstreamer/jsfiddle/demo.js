@@ -1,5 +1,5 @@
 /* eslint-env browser */
-let signallingServer = "http://localhost:57778";
+let signallingServer = "http://hyperscale-stg.coldsnow.net:9091";
 let pc = new RTCPeerConnection({
   iceServers: [
     {
@@ -83,7 +83,7 @@ function makeid(length) {
 async function sendOffer(offer) {
   try {
     // send offer to signalling server
-    let response =  await fetch(`${signallingServer}/signaling/1.0/connections`, {
+    let response =  await fetch(`${signallingServer}/signaling/1.0/client/connections`, {
       method: 'post',
       headers: {
         'Content-Type': 'application/json'
@@ -94,6 +94,7 @@ async function sendOffer(offer) {
     console.log("posted an offer..");
 
     let connection = await response.json();
+    console.log("connection id is " + connection.connectionId)
     return connection.connectionId;
   } catch(e) {
     alert(e);
