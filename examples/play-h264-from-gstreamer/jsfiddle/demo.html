@@ -1,6 +1,31 @@
 <button onclick="window.startUI()"> UI </button>
 <button onclick="window.startABR()"> ABR </button>
-<br />
+
+
+<br/>
+<br/>
+
+<div class="control">
+    <div class="single-element row">
+        <button onclick="window.SendDataMessage('up')"> &#5123;
+        </button>
+    </div>
+    <div class="multiple-element row">
+        <button onclick="window.SendDataMessage('left')"> &#5130;
+        </button>
+        <button onclick="window.SendDataMessage('select')"> &#9166;
+        </button>
+        <button onclick="window.SendDataMessage('right')"> &#5125;
+        </button>
+    </div>
+    <div class="single-element row">
+        <button onclick="window.SendDataMessage('down')"> &#5121;
+        </button>
+    </div>
+</div>
+
+
+<br/>
 
 Video<br />
 <div id="remoteVideos"></div> <br />

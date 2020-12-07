@@ -71,6 +71,15 @@ window.startABR = async () => {
   }
 }
 
+window.SendDataMessage= async (msg) => {
+  try {
+    sendChannel.send(msg);
+    log('datachannel. sent ' + msg)
+  } catch (e) {
+    alert(e)
+  }
+}
+
 function makeid(length) {
   var result           = '';
   var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';

@@ -2,3 +2,19 @@ textarea {
     width: 500px;
     min-height: 75px;
 }
+
+.control {
+
+    width: 100px;
+}
+.row {
+    display: flex;
+    align-items: center;
+    margin: 5px;
+}
+.single-element {
+    justify-content: center;
+}
+.multiple-element {
+    justify-content: space-between;
+}
