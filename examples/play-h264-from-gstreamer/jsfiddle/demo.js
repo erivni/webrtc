@@ -23,6 +23,7 @@ let log = msg => {
   let now = new Date(Date.now()).toLocaleString();
   document.getElementById('logs').innerHTML += `${now}: ${msg}<br>`
 }
+
 const dataChannelOptions = {
   ordered: true, // do not guarantee order
   maxPacketLifeTime: 3000, // in milliseconds
@@ -170,3 +171,6 @@ async function getAnswer(connectionId) {
   }
 }
 
+window.onload = () => {
+  log("waiting for an available transcontainer..");
+}

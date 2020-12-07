@@ -24,7 +24,6 @@ let log = msg => {
   document.getElementById('logs').innerHTML += `${now}: ${msg}<br>`
 }
 
-
 pc.oniceconnectionstatechange = e => {
   log(pc.iceConnectionState);
   if (pc.iceConnectionState == "connected") {
@@ -85,6 +84,7 @@ pc.onicecandidate = async event => {
 
 async function getConnection() {
   try{
+
     console.log("trying to get available offer..");
 
     let response = await fetch(`${signallingServer}/signaling/1.0/application/queue`, {
@@ -157,3 +157,7 @@ async function sendAnswer(connectionId, answer) {
 }
 
 getConnection();
+
+window.onload = () => {
+  log("waiting for an available transcontainer..");
+}

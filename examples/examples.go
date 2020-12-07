@@ -27,6 +27,7 @@ type Example struct {
 	Link        string `json:"link"`
 	Description string `json:"description"`
 	Type        string `json:"type"`
+	Left        string `json:"left"`
 	IsJS        bool
 	IsWASM      bool
 }
