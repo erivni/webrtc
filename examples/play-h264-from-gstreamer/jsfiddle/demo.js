@@ -8,7 +8,20 @@ let pc = new RTCPeerConnection({
   ]
 })
 let log = msg => {
-  document.getElementById('div').innerHTML += msg + '<br>'
+
+  let innerHtml = document.getElementById('logs').innerHTML;
+  let count = (innerHtml.match(/<br>/g) || []).length;
+
+  if (count >= 15) { // rolling logs
+    innerHtml = innerHtml.substr(4); // ignore first <br>
+    let secondBr = innerHtml.indexOf("<br>");
+    innerHtml = innerHtml.substr(secondBr);
+
+    document.getElementById('logs').innerHTML =  innerHtml;
+  }
+
+  let now = new Date(Date.now()).toLocaleString();
+  document.getElementById('logs').innerHTML += `${now}: ${msg}<br>`
 }
 const dataChannelOptions = {
   ordered: true, // do not guarantee order
@@ -31,6 +44,11 @@ pc.ontrack = function (event) {
   el.autoplay = true
   el.controls = true
   document.getElementById('remoteVideos').appendChild(el)
+
+  el.addEventListener('resize', () => {
+    log(`** resizing: remote video size changed to ${el.videoWidth}x${el.videoHeight}`);
+  });
+
 }
 pc.oniceconnectionstatechange = e => log(pc.iceConnectionState);
 
@@ -79,6 +97,25 @@ window.SendDataMessage= async (msg) => {
     alert(e)
   }
 }
+
+window.resizeUp = async () => {
+  try {
+    sendChannel.send("resize_up");
+    log("sent REMB to higher bitrate")
+  } catch (e) {
+    alert(e)
+  }
+}
+
+window.resizeDown = async () => {
+  try {
+    sendChannel.send("resize_down");
+    log("sent REMB to lower bitrate")
+  } catch (e) {
+    alert(e)
+  }
+}
+
 
 function makeid(length) {
   var result           = '';

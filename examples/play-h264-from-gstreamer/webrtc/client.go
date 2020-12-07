@@ -163,6 +163,10 @@ func (client *WebRTCClient) Connect(clientConnectionId string) {
 				"dataChannelId":    client.dataChannel.ID(),
 				"dataChannelLabel": client.dataChannel.Label(),
 			}).Debug("got new message: ", string(msg.Data))
+
+		if client.OnMessageHandler != nil {
+			client.OnMessageHandler(msg)
+		}
 	})
 
 	// creating an offer
@@ -257,34 +261,41 @@ func (client *WebRTCClient) WriteRTCP(packet rtcp.Packet) {
 		newPliPacket := packet.(*rtcp.PictureLossIndication)
 		newPliPacket.MediaSSRC = client.videoTrack.SSRC()
 		newPacket = newPliPacket
+		break
 	case *rtcp.FullIntraRequest:
 		newFIRPacket := packet.(*rtcp.FullIntraRequest)
 		newFIRPacket.MediaSSRC = client.videoTrack.SSRC()
 		newPacket = newFIRPacket
+		break
 	case *rtcp.ReceiverEstimatedMaximumBitrate:
 		newREMBPacket := packet.(*rtcp.ReceiverEstimatedMaximumBitrate)
 		newREMBPacket.SenderSSRC = client.videoTrack.SSRC()
 		newPacket = newREMBPacket
+		break
 	case *rtcp.TransportLayerNack:
 		newNackPacket := packet.(*rtcp.TransportLayerNack)
 		newNackPacket.MediaSSRC = client.videoTrack.SSRC()
 		newPacket = newNackPacket
+		break
 	case *rtcp.ReceiverReport:
 		newRRPacket := packet.(*rtcp.ReceiverReport)
 		newPacket = newRRPacket
+		break
 	default:
 	}
 
-	errSend := client.peerConnection.WriteRTCP([]rtcp.Packet{newPacket})
-	if errSend != nil {
-		log.WithFields(
-			log.Fields{
-				"component": 		"webrtcclient",
-				"state": 			client.State,
-				"clientConnectionId":     client.clientConnectionId,
-				"ssrc":   			client.videoTrack.SSRC(),
-				"error":   			errSend,
-			}).Error("failed to send RTCP packet.")
+	if newPacket != nil {
+		errSend := client.peerConnection.WriteRTCP([]rtcp.Packet{newPacket})
+		if errSend != nil {
+			log.WithFields(
+				log.Fields{
+					"component":          "webrtcclient",
+					"state":              client.State,
+					"clientConnectionId": client.clientConnectionId,
+					"ssrc":               client.videoTrack.SSRC(),
+					"error":              errSend,
+				}).Error("failed to send RTCP packet.")
+		}
 	}
 }
 

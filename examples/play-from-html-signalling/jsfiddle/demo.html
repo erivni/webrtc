@@ -1,32 +1,16 @@
 <br />
 
-UI Video<br />
+UI Video<br /><br />
 <!--<video id="video1" crossOrigin="anonymous" loop muted controls></video> <br />-->
-<video id="video1" width="160" height="120" loop controls crossOrigin="anonymous" src="http://hyperscale.coldsnow.net:8080/hyperscale.mp4" muted></video> <br />
-
-Message<br />
-<textarea id="message">This is my DataChannel message!</textarea> <br/>
-<button onclick="window.sendMessage()"> Send Message </button> <br />
-
+<button onclick="window.startUI()"> UI </button>
+<button onclick="window.startABR()"> ABR </button> <br/><br/>
+<button onclick="window.tuneTo()"> TuneTo </button>
+<select name="channels" id="channels">
+    <option value="bbb_360_abr">http://hyperscale.coldsnow.net:8080/bbb_360_abr.m3u8</option>
+    <option value="bbb_720_abr">http://hyperscale.coldsnow.net:8080/bbb_720_abr.m3u8</option>
+</select> <b style="color:red">#TBD </b>
+<br /> <br/>
+<video id="video1" width="420" height="240" loop controls crossOrigin="anonymous" src="http://hyperscale.coldsnow.net:8080/hyperscale.mp4" muted></video> <br />
+<br/>
 Logs<br />
 <div id="logs"></div>
-
-
-<!--<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>-->
-<!--<script>-->
-<!--    var video = document.getElementById('video1');-->
-<!--    var videoSrc = 'http://hyperscale.coldsnow.net:8080/bbb_360_ui.m3u8';-->
-<!--    if (Hls.isSupported()) {-->
-<!--        var hls = new Hls();-->
-<!--        hls.loadSource(videoSrc);-->
-<!--        hls.attachMedia(video);-->
-<!--        hls.on(Hls.Events.MANIFEST_PARSED, function() {-->
-<!--            video.play();-->
-<!--        });-->
-<!--    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {-->
-<!--        video.src = videoSrc;-->
-<!--        video.addEventListener('loadedmetadata', function() {-->
-<!--            video.play();-->
-<!--        });-->
-<!--    }-->
-<!--</script>-->

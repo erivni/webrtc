@@ -65,6 +65,11 @@ func (lifecycle *Lifecycle) Stop() {
 	lifecycle.transcontainer.Stop()
 }
 
+func (lifecycle *Lifecycle) Restart() {
+	lifecycle.Stop()
+	lifecycle.Start()
+}
+
 func (lifecycle *Lifecycle) OnClientStateChange(state webrtc.State) {
 	log.WithFields(
 		log.Fields{

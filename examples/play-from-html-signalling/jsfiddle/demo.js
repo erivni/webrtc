@@ -7,9 +7,23 @@ let pc = new RTCPeerConnection({
     }
   ]
 })
-var log = msg => {
-  document.getElementById('logs').innerHTML += msg + '<br>'
+let log = msg => {
+
+  let innerHtml = document.getElementById('logs').innerHTML;
+  let count = (innerHtml.match(/<br>/g) || []).length;
+
+  if (count >= 15) { // rolling logs
+    innerHtml = innerHtml.substr(4); // ignore first <br>
+    let secondBr = innerHtml.indexOf("<br>");
+    innerHtml = innerHtml.substr(secondBr);
+
+    document.getElementById('logs').innerHTML =  innerHtml;
+  }
+
+  let now = new Date(Date.now()).toLocaleString();
+  document.getElementById('logs').innerHTML += `${now}: ${msg}<br>`
 }
+
 
 pc.oniceconnectionstatechange = e => {
   log(pc.iceConnectionState);
@@ -30,13 +44,35 @@ pc.ondatachannel = e => {
     log(`>> got message: ${e.data}`);
   }
 
-  window.sendMessage = () => {
-    let message = document.getElementById('message').value
-    if (message === '') {
-      return alert('Message must not be empty')
+  window.startUI = async () => {
+    try {
+      dc.send("ui");
+      log("sent command to switch to ui")
+    } catch (e) {
+      alert(e)
     }
-    dc.send(message)
   }
+  window.startABR = async () => {
+    try {
+      dc.send("abr");
+      log("sent command to switch to abr")
+    } catch (e) {
+      alert(e)
+    }
+  }
+
+  window.tuneTo = async () => {
+    try {
+      const channels = document.getElementById('channels');
+      let selected_channel = channels.options[channels.selectedIndex].text;
+
+      dc.send(`tuneTo: ${selected_channel}`);
+      log(`sent command to tune to ${selected_channel}`)
+    } catch (e) {
+      alert(e)
+    }
+  }
+
 }
 
 let connectionId;

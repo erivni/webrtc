@@ -2,7 +2,6 @@ package transcontainer
 
 import "C"
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"github.com/pion/rtcp"
@@ -12,6 +11,7 @@ import (
 	"github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/webrtc"
 	"github.com/pion/webrtc/v3/pkg/media"
 	log "github.com/sirupsen/logrus"
+	"strings"
 )
 
 const (
@@ -45,6 +45,9 @@ const (
 	ABR           StreamingState = 1
 	SWITCH_TO_UI  StreamingState = 2
 	SWITCH_TO_ABR StreamingState = 3
+	RESIZE_UP	  StreamingState = 4
+	RESIZE_DOWN	  StreamingState = 5
+	TUNE_TO		  StreamingState = 6
 )
 func (s StreamingState) String() string {
 	switch s {
@@ -56,6 +59,12 @@ func (s StreamingState) String() string {
 		return "SWITCH_TO_UI"
 	case SWITCH_TO_ABR:
 		return "SWITCH_TO_ABR"
+	case RESIZE_UP:
+		return "RESIZE_UP"
+	case RESIZE_DOWN:
+		return "RESIZE_DOWN"
+	case TUNE_TO:
+		return "TUNE_TO"
 	default:
 		return fmt.Sprintf("%d", int(s))
 	}
@@ -128,18 +137,20 @@ func (t *Transcontainer) processRTCP(packet rtcp.Packet){
 	switch packet := packet.(type) {
 	case *rtcp.PictureLossIndication:
 		// if streaming mode == ui then forward this PLI to the UI
-		if t.StreamingState == UI || t.StreamingState == SWITCH_TO_ABR{
+		if t.StreamingState == UI || t.StreamingState == SWITCH_TO_UI {
 			t.uiConnection.WriteRTCP(packet)
 		}
 
 		// TODO: handle when streaming ABR
+		break
 	case *rtcp.FullIntraRequest:
 		// if streaming mode == ui then forward this PLI to the UI
-		if t.StreamingState == UI || t.StreamingState == SWITCH_TO_ABR{
+		if t.StreamingState == UI || t.StreamingState == SWITCH_TO_UI {
 			t.uiConnection.WriteRTCP(packet)
 		}
 
 		// TODO: handle when streaming ABR
+		break
 	case *rtcp.ReceiverEstimatedMaximumBitrate:
 	case *rtcp.TransportLayerNack:
 	case *rtcp.ReceiverReport:
@@ -193,6 +204,8 @@ func (t *Transcontainer) processUiMessage(msg pion.DataChannelMessage){
 			"steamingState": 	t.StreamingState,
 			"datachannelMsg": string(msg.Data),
 		}).Info("got message from ui.")
+
+	t.processMessage(string(msg.Data))
 }
 
 func (t *Transcontainer) processClientMessage(msg pion.DataChannelMessage){
@@ -208,31 +221,7 @@ func (t *Transcontainer) processClientMessage(msg pion.DataChannelMessage){
 	// pass the received data message to the ui
 	t.uiConnection.SendDataMessage(message)
 
-	msgState := convertStringToTranscontainerState(string(msg.Data))
-	switch msgState {
-	case ABR: {
-			if t.StreamingState != msgState {
-				t.changeStreamingState(SWITCH_TO_ABR)
-			}
-			break;
-		}
-	case UI:
-		{
-			if t.StreamingState != msgState {
-				t.changeStreamingState(SWITCH_TO_UI)
-			}
-			break;
-		}
-	default:
-		log.WithFields(
-			log.Fields{
-				"component":	"transcontainer",
-				"state": 			t.State,
-				"steamingState": 	t.StreamingState,
-			}).Error("got unknown message: ", string(msg.Data))
-		break;
-	}
-
+	t.processMessage(message)
 }
 
 func (t *Transcontainer) Stop() {
@@ -281,6 +270,46 @@ func (t *Transcontainer) changeStreamingState(state StreamingState) {
 	}
 }
 
+func (t *Transcontainer) processMessage(message string){
+
+	parsedMessage := strings.Split(message, " ")
+	msgState := convertStringToTranscontainerState(parsedMessage[0])
+	switch msgState {
+	case ABR: {
+		if t.StreamingState != msgState {
+			t.changeStreamingState(SWITCH_TO_ABR)
+		}
+		break;
+	}
+	case UI:
+		{
+			if t.StreamingState != msgState {
+				t.changeStreamingState(SWITCH_TO_UI)
+				// force ui to send iframe as quickly as possible to have a quick switch
+				t.uiConnection.WriteRTCP(&rtcp.PictureLossIndication{})
+			}
+			break;
+		}
+	case RESIZE_UP:
+		t.uiConnection.WriteRTCP(&rtcp.ReceiverEstimatedMaximumBitrate{Bitrate: 10000000})
+		break
+	case RESIZE_DOWN:
+		t.uiConnection.WriteRTCP(&rtcp.ReceiverEstimatedMaximumBitrate{Bitrate: 1000})
+		break
+	case TUNE_TO:
+		break
+	default:
+		log.WithFields(
+			log.Fields{
+				"component":	"transcontainer",
+				"state": 			t.State,
+				"steamingState": 	t.StreamingState,
+			}).Error("got unknown message: ", message)
+		break;
+	}
+
+}
+
 func convertStringToTranscontainerState(state string) StreamingState{
 	switch state {
 	case "ui":
@@ -291,6 +320,10 @@ func convertStringToTranscontainerState(state string) StreamingState{
 		return SWITCH_TO_UI
 	case "switch_to_abr":
 		return SWITCH_TO_ABR
+	case "resize_up":
+		return RESIZE_UP
+	case "resize_down":
+		return RESIZE_DOWN
 	default:
 		return UI
 	}
@@ -305,26 +338,6 @@ func isIframe(buffer []byte) bool{
 		}
 	})
 	return isIframe
-}
-
-func isKeyFrame(data []byte) bool {
-	const typeSTAPA = 24
-
-	var word uint32
-
-	payload := bytes.NewReader(data)
-	err := binary.Read(payload, binary.BigEndian, &word)
-
-	//fmt.Println("UI | naluType: " , (word&0x1F000000)>>24)
-	if err != nil || (word&0x1F000000)>>24 != typeSTAPA {
-		return false
-	}
-
-	if (word&0x1F  == 7) {
-		fmt.Println ("------------------------------------")
-		fmt.Println ("found keyFrame")
-	}
-	return word&0x1F == 7
 }
 
 func emitNalus(nals []byte, emit func([]byte)) {
