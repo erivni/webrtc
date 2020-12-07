@@ -97,48 +97,48 @@ func (j *Jitter) StartRTCP(onRTCPHandler func([]rtcp.Packet)){
 				onRTCPHandler(packets)
 			}
 			// TODO: should move it to TC
-			//for _, packet := range packets{
-			//	/*
-			//	log.WithFields(
-			//		log.Fields{
-			//			"component": "jitter",
-			//			"segmentStart": segmentStart,
-			//			"segmentEnd": segmentEnd,
-			//			"size": len(j.buffer),
-			//		}).Info("rtcp: got ", reflect.TypeOf(packet), " packet")
-			//
-			//	 */
-			//
-			//	switch packet := packet.(type) {
-			//	case *rtcp.PictureLossIndication:
-			//		j.pliCount++
-			//	case *rtcp.FullIntraRequest:
-			//		j.firCount++
-			//	case *rtcp.ReceiverEstimatedMaximumBitrate:
-			//		j.rembCount++
-			//	case *rtcp.TransportLayerNack:
-			//		nack := packet
-			//		for _, nack := range nack.Nacks{
-			//			j.nackCount++
-			//			//fmt.Println("nackCount: ", nackCount, ". got nack for packet ", nack.PacketID)
-			//			j.mapSync.Lock()
-			//			packet, ok := j.buffer[nack.PacketID]
-			//			j.mapSync.Unlock()
-			//			if ok == false{
-			//				log.Warn("did not find packet with SN ", nack.PacketID, " in jitter")
-			//			}else{
-			//				j.track.WriteRTP(packet)
-			//			}
-			//		}
-			//	case *rtcp.ReceiverReport:
-			//		if len(packet.Reports) > 0{
-			//			j.receiverTotalLost = packet.Reports[0].TotalLost
-			//		}
-			//
-			//	default:
-			//
-			//	}
-			//}
+			for _, packet := range packets{
+				/*
+				log.WithFields(
+					log.Fields{
+						"component": "jitter",
+						"segmentStart": segmentStart,
+						"segmentEnd": segmentEnd,
+						"size": len(j.buffer),
+					}).Info("rtcp: got ", reflect.TypeOf(packet), " packet")
+
+				 */
+
+				switch packet := packet.(type) {
+				case *rtcp.PictureLossIndication:
+					j.pliCount++
+				case *rtcp.FullIntraRequest:
+					j.firCount++
+				case *rtcp.ReceiverEstimatedMaximumBitrate:
+					j.rembCount++
+				case *rtcp.TransportLayerNack:
+					nack := packet
+					for _, nack := range nack.Nacks{
+						j.nackCount++
+						//fmt.Println("nackCount: ", nackCount, ". got nack for packet ", nack.PacketID)
+						j.mapSync.Lock()
+						packet, ok := j.buffer[nack.PacketID]
+						j.mapSync.Unlock()
+						if ok == false{
+							log.Warn("did not find packet with SN ", nack.PacketID, " in jitter")
+						}else{
+							j.track.WriteRTP(packet)
+						}
+					}
+				case *rtcp.ReceiverReport:
+					if len(packet.Reports) > 0{
+						j.receiverTotalLost = packet.Reports[0].TotalLost
+					}
+
+				default:
+
+				}
+			}
 		}
 	}()
 

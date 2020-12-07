@@ -128,7 +128,7 @@ func (t *Transcontainer) processRTCP(packets []rtcp.Packet){
 
 func (t *Transcontainer) processSample(sample media.Sample, streamType utils.StreamType, sampleType utils.SampleType){
 
-	if streamType == utils.ABR && t.StreamingState == SWITCH_TO_UI {
+	if streamType == utils.UI && t.StreamingState == SWITCH_TO_UI {
 		if sampleType == utils.VIDEO && isIframe(sample.Data) {
 			t.changeStreamingState(UI)
 		}
@@ -174,13 +174,17 @@ func (t *Transcontainer) processUiMessage(msg pion.DataChannelMessage){
 }
 
 func (t *Transcontainer) processClientMessage(msg pion.DataChannelMessage){
+	message := string(msg.Data)
 	log.WithFields(
 		log.Fields{
 			"component": "transcontainer",
 			"state": 			t.State,
-			"steamingState": 	t.StreamingState,
-			"datachannelMsg": string(msg.Data),
-		}).Info("got message from client.")
+			"streamingState": 	t.StreamingState,
+			"datachannelMsg": message,
+		}).Info("got message from client. will pass to UI")
+
+	// pass the received data message to the ui
+	t.uiConnection.SendDataMessage(message)
 
 	msgState := convertStringToTranscontainerState(string(msg.Data))
 	switch msgState {

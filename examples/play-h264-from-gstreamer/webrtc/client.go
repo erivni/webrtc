@@ -1,6 +1,7 @@
 package webrtc
 
 import (
+	"errors"
 	"fmt"
 	"github.com/pion/rtcp"
 	"github.com/pion/rtp/codecs"
@@ -17,15 +18,16 @@ import (
 const SIGNALLING_RETRIES = 15
 
 type WebRTCClient struct {
-	State            State
-	readingRTP		 bool
-	clientConnectionId     string
-	connectionId     string
-	signallingClient signalling.SignallingClient
+	State            	State
+	readingRTP		 	bool
+	clientConnectionId  string
+	connectionId     	string
+	signallingClient 	signalling.SignallingClient
 
-	peerConnection 				*webrtc.PeerConnection
-	videoTrack					*webrtc.Track
+	peerConnection 		*webrtc.PeerConnection
+	videoTrack			*webrtc.Track
 
+	dataChannel         *webrtc.DataChannel
 	OnMessageHandler func(webrtc.DataChannelMessage)
 	OnStateChangeHandler func(State)
 	OnSampleHandler func(media.Sample, utils.StreamType, utils.SampleType)
@@ -73,7 +75,7 @@ func (client *WebRTCClient) Connect(clientConnectionId string) {
 	}
 
 	// create datachannel
-	dataChannel, err := client.peerConnection.CreateDataChannel("hyperscale", nil)
+	client.dataChannel, err = client.peerConnection.CreateDataChannel("hyperscale", nil)
 	if err != nil {
 		panic(err)
 	}
@@ -139,28 +141,28 @@ func (client *WebRTCClient) Connect(clientConnectionId string) {
 		}
 	})
 
-	dataChannel.OnOpen(func() {
+	client.dataChannel.OnOpen(func() {
 		log.WithFields(
 			log.Fields{
 				"component": 		"webrtcclient",
 				"state": 			client.State,
 				"clientConnectionId":     client.clientConnectionId,
-				"dataChannelId":    dataChannel.ID(),
-				"dataChannelLabel": dataChannel.Label(),
+				"dataChannelId":    client.dataChannel.ID(),
+				"dataChannelLabel": client.dataChannel.Label(),
 			}).Debug("data channel is open.")
 
 		hostname, _ := os.Hostname()
-		dataChannel.SendText(fmt.Sprintf("connection opened with Transcontainer: %s", hostname))
+		client.dataChannel.SendText(fmt.Sprintf("connection opened with Transcontainer: %s", hostname))
 	})
 
-	dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
+	client.dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
 		log.WithFields(
 			log.Fields{
 				"component": 		"webrtcclient",
 				"state": 			client.State,
 				"clientConnectionId":     client.clientConnectionId,
-				"dataChannelId":    dataChannel.ID(),
-				"dataChannelLabel": dataChannel.Label(),
+				"dataChannelId":    client.dataChannel.ID(),
+				"dataChannelLabel": client.dataChannel.Label(),
 			}).Debug("got new message: ", string(msg.Data))
 	})
 
@@ -282,4 +284,34 @@ func (client *WebRTCClient) changeState(state State) {
 func (client *WebRTCClient) SetListeners(onMessageHandler func(webrtc.DataChannelMessage), onSampleHandler func(media.Sample, utils.StreamType, utils.SampleType)) {
 	client.OnMessageHandler = onMessageHandler
 	client.OnSampleHandler = onSampleHandler
+}
+
+func (client *WebRTCClient) SendDataMessage(message string) error{
+	errorMessage := ""
+	if client.dataChannel.ReadyState() != webrtc.DataChannelStateOpen{
+		errorMessage = "cannot send data message. data channel is in " + string(client.dataChannel.ReadyState()) + " state"
+		log.WithFields(
+			log.Fields{
+				"component": 		"webrtcclient",
+				"state": 			client.State,
+				"dataChannelState": client.dataChannel.ReadyState(),
+				"clientConnectionId":     client.clientConnectionId,
+				"dataChannelMessage": message,
+			}).Error(errorMessage)
+		return errors.New(errorMessage)
+	}
+	err := client.dataChannel.SendText(message)
+	if err != nil{
+		errorMessage = "error while sending data message: " + err.Error()
+		log.WithFields(
+			log.Fields{
+				"component": 		"webrtcclient",
+				"state": 			client.State,
+				"dataChannelState": client.dataChannel.ReadyState(),
+				"clientConnectionId":     client.clientConnectionId,
+				"dataChannelMessage": message,
+			}).Error(errorMessage)
+		return errors.New(errorMessage)
+	}
+	return nil
 }
