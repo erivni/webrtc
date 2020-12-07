@@ -127,8 +127,19 @@ func (t *Transcontainer) processRTCP(packet rtcp.Packet){
 
 	switch packet := packet.(type) {
 	case *rtcp.PictureLossIndication:
-		t.uiConnection.WriteRTCP(packet)
+		// if streaming mode == ui then forward this PLI to the UI
+		if t.StreamingState == UI || t.StreamingState == SWITCH_TO_ABR{
+			t.uiConnection.WriteRTCP(packet)
+		}
+
+		// TODO: handle when streaming ABR
 	case *rtcp.FullIntraRequest:
+		// if streaming mode == ui then forward this PLI to the UI
+		if t.StreamingState == UI || t.StreamingState == SWITCH_TO_ABR{
+			t.uiConnection.WriteRTCP(packet)
+		}
+
+		// TODO: handle when streaming ABR
 	case *rtcp.ReceiverEstimatedMaximumBitrate:
 	case *rtcp.TransportLayerNack:
 	case *rtcp.ReceiverReport:
