@@ -114,16 +114,27 @@ func (t *Transcontainer) Start() {
 	t.abrPlayer.Start()
 }
 
-func (t *Transcontainer) processRTCP(packets []rtcp.Packet){
+// ProcessRTCP receives RTCP messages from the client connection and makes decisions based on packet type and state
+// e.g. when in UI we can decide to lower bitrate. when in ABR we can decide to lock on a different ABR bitrate
+func (t *Transcontainer) processRTCP(packet rtcp.Packet){
 
 	log.WithFields(
 		log.Fields{
 			"component": 		"transcontainer",
 			"state": 			t.State,
 			"steamingState": 	t.StreamingState,
-			"rtcps":			len(packets),
 		}).Trace("process rtcp...")
 
+	switch packet := packet.(type) {
+	case *rtcp.PictureLossIndication:
+		t.uiConnection.WriteRTCP(packet)
+	case *rtcp.FullIntraRequest:
+	case *rtcp.ReceiverEstimatedMaximumBitrate:
+	case *rtcp.TransportLayerNack:
+	case *rtcp.ReceiverReport:
+	default:
+
+	}
 }
 
 func (t *Transcontainer) processSample(sample media.Sample, streamType utils.StreamType, sampleType utils.SampleType){

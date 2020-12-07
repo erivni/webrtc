@@ -14,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"os"
 	"strings"
+	"time"
 )
 
 type WebRTCServer struct {
@@ -31,11 +32,25 @@ type WebRTCServer struct {
 
 	OnMessageHandler func(webrtc.DataChannelMessage)
 	OnStateChangeHandler func(State)
-	OnRTCPHandler func([]rtcp.Packet)
+	OnRTCPHandler func(rtcp.Packet)
+
+	// RTCP
+	nackCount int
+	pliCount int
+	firCount int
+	rembCount int
+	receiverTotalLost uint32
 }
 
-func NewWebRTCServer(signallingClient signalling.SignallingClient, onMessageHandler func(webrtc.DataChannelMessage), onStateChangeHandler func(State), onRTCPHandler func([]rtcp.Packet)) *WebRTCServer {
-	return &WebRTCServer{State: IDLE, Interleaved: false, signallingClient: signallingClient, OnMessageHandler: onMessageHandler, OnStateChangeHandler: onStateChangeHandler, OnRTCPHandler: onRTCPHandler}
+func NewWebRTCServer(signallingClient signalling.SignallingClient, onMessageHandler func(webrtc.DataChannelMessage), onStateChangeHandler func(State), onRTCPHandler func(rtcp.Packet)) *WebRTCServer {
+	return &WebRTCServer{
+		State: IDLE, Interleaved: false, signallingClient: signallingClient, OnMessageHandler: onMessageHandler, OnStateChangeHandler: onStateChangeHandler, OnRTCPHandler: onRTCPHandler,
+		nackCount: int(0),
+		pliCount: int(0),
+		firCount: int(0),
+		rembCount: int(0),
+		receiverTotalLost: uint32(0),
+	}
 }
 
 
@@ -124,7 +139,7 @@ func (server *WebRTCServer) Connect() {
 
 		if connectionState == webrtc.ICEConnectionStateConnected {
 			server.changeState(CONNECTED)
-			server.videoJitter.StartRTCP(server.OnRTCPHandler)
+			server.StartRTCP()
 		} else if connectionState == webrtc.ICEConnectionStateFailed {
 			server.changeState(FAILED)
 		} else if connectionState == webrtc.ICEConnectionStateDisconnected {
@@ -216,6 +231,84 @@ func (server *WebRTCServer) Connect() {
 
 }
 
+func (server *WebRTCServer) StartRTCP() {
+	// read rtcp and call handler
+	go func() {
+		senders := server.peerConnection.GetSenders()
+		if len(senders) < 1 {
+			fmt.Println("found no senders")
+		}
+		sender := senders[0]
+		for {
+			if server.State != CONNECTED {
+				return
+			}
+			packets, _ := sender.ReadRTCP()
+
+			for _, packet := range packets {
+				// pass RTCP packet to jitter for handling NACKs
+				server.videoJitter.HandleRTCP(packet)
+				/*
+					log.WithFields(
+						log.Fields{
+							"component": "jitter",
+							"segmentStart": segmentStart,
+							"segmentEnd": segmentEnd,
+							"size": len(j.buffer),
+						}).Info("rtcp: got ", reflect.TypeOf(packet), " packet")
+
+				*/
+
+				switch packet := packet.(type) {
+				case *rtcp.PictureLossIndication:
+					server.pliCount++
+				case *rtcp.FullIntraRequest:
+					server.firCount++
+				case *rtcp.ReceiverEstimatedMaximumBitrate:
+					server.rembCount++
+				case *rtcp.TransportLayerNack:
+					nack := packet
+					if nack.Nacks != nil{
+						server.nackCount += len(nack.Nacks)
+					}
+				case *rtcp.ReceiverReport:
+					if len(packet.Reports) > 0 {
+						server.receiverTotalLost = packet.Reports[0].TotalLost
+					}
+
+				default:
+
+				}
+
+				if server.OnRTCPHandler != nil{
+					server.OnRTCPHandler(packet)
+				}
+
+			}
+		}
+	}()
+
+	// rtcp report
+	go func(){
+		for range time.NewTicker(30 * time.Second).C {
+
+			if server.State != CONNECTED {
+				return
+			}
+
+			log.WithFields(
+				log.Fields{
+					"component": "webrtcserver",
+					"nackCount": server.nackCount,
+					"pliCount": server.pliCount,
+					"friCount": server.firCount,
+					"rembCount": server.rembCount,
+					"receiverTotalLost": server.receiverTotalLost,
+				}).Info("RTCP report")
+		}
+	}()
+}
+
 func (server *WebRTCServer) Disconnect() {
 	if server.peerConnection == nil{
 		return
@@ -265,7 +358,7 @@ func (server *WebRTCServer) changeState(state State) {
 	}
 }
 
-func (server *WebRTCServer) SetListeners(onMessageHandler func(webrtc.DataChannelMessage), OnRTCPHandler func([]rtcp.Packet)) {
+func (server *WebRTCServer) SetListeners(onMessageHandler func(webrtc.DataChannelMessage), OnRTCPHandler func(rtcp.Packet)) {
 	server.OnMessageHandler = onMessageHandler
 	server.OnRTCPHandler = OnRTCPHandler
 }

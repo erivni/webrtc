@@ -12,7 +12,6 @@ import (
 	"github.com/pion/webrtc/v3/pkg/media/samplebuilder"
 	log "github.com/sirupsen/logrus"
 	"os"
-	"time"
 )
 
 const SIGNALLING_RETRIES = 15
@@ -246,29 +245,47 @@ func (client *WebRTCClient) StopReadingRTP(){
 	client.readingRTP = false
 }
 
-func (client *WebRTCClient) WriteRTCP() {
+// WriteRTCP gets a RTCP packet from the TC, switches the SSRC and forwards to the UI
+func (client *WebRTCClient) WriteRTCP(packet rtcp.Packet) {
+	if client.State != CONNECTED {
+		panic("write rtcp called while client state is not connected")
+	}
+	var newPacket rtcp.Packet
+	switch packet.(type) {
 
-	go func() {
-		ticker := time.NewTicker(time.Second * 3)
-		for range ticker.C {
-			if client.State != CONNECTED {
-				return
-			}
+	case *rtcp.PictureLossIndication:
+		newPliPacket := packet.(*rtcp.PictureLossIndication)
+		newPliPacket.MediaSSRC = client.videoTrack.SSRC()
+		newPacket = newPliPacket
+	case *rtcp.FullIntraRequest:
+		newFIRPacket := packet.(*rtcp.FullIntraRequest)
+		newFIRPacket.MediaSSRC = client.videoTrack.SSRC()
+		newPacket = newFIRPacket
+	case *rtcp.ReceiverEstimatedMaximumBitrate:
+		newREMBPacket := packet.(*rtcp.ReceiverEstimatedMaximumBitrate)
+		newREMBPacket.SenderSSRC = client.videoTrack.SSRC()
+		newPacket = newREMBPacket
+	case *rtcp.TransportLayerNack:
+		newNackPacket := packet.(*rtcp.TransportLayerNack)
+		newNackPacket.MediaSSRC = client.videoTrack.SSRC()
+		newPacket = newNackPacket
+	case *rtcp.ReceiverReport:
+		newRRPacket := packet.(*rtcp.ReceiverReport)
+		newPacket = newRRPacket
+	default:
+	}
 
-			errSend := client.peerConnection.WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{MediaSSRC: client.videoTrack.SSRC()}})
-			if errSend != nil {
-				log.WithFields(
-					log.Fields{
-						"component": 		"webrtcclient",
-						"state": 			client.State,
-						"clientConnectionId":     client.clientConnectionId,
-						"ssrc":   			client.videoTrack.SSRC(),
-						"error":   			errSend,
-					}).Error("failed to send RTCP packet.")
-			}
-		}
-	}()
-
+	errSend := client.peerConnection.WriteRTCP([]rtcp.Packet{newPacket})
+	if errSend != nil {
+		log.WithFields(
+			log.Fields{
+				"component": 		"webrtcclient",
+				"state": 			client.State,
+				"clientConnectionId":     client.clientConnectionId,
+				"ssrc":   			client.videoTrack.SSRC(),
+				"error":   			errSend,
+			}).Error("failed to send RTCP packet.")
+	}
 }
 
 func (client *WebRTCClient) changeState(state State) {
