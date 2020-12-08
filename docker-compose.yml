@@ -4,6 +4,8 @@ services:
     build: .
     ports:
       - "50000-50002:50000-50002/udp"
+      - "50003-50005:50003-50005/udp"
+      - "5000:5000/udp"
     deploy:
       restart_policy:
         condition: any
