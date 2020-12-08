@@ -15,6 +15,9 @@ func main() {
 		FullTimestamp: true,
 	})
 
+	// ivpLogger
+	//log.SetFormatter(&logger.Formatter{})
+
 	// Output to stdout instead of the default stderr
 	// Can be any io.Writer, see below for File example
 	log.SetOutput(os.Stdout)

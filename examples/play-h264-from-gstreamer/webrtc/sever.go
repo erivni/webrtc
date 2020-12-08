@@ -55,6 +55,11 @@ func NewWebRTCServer(signallingClient signalling.SignallingClient, onMessageHand
 
 
 func (server *WebRTCServer) Connect() {
+
+	if server.State == INITIATE {
+		return
+	}
+
 	var err error
 	server.ConnectionId, err = server.signallingClient.GetQueue()
 	if err != nil {
@@ -62,6 +67,13 @@ func (server *WebRTCServer) Connect() {
 	}
 
 	server.changeState(INITIATE)
+
+	log.WithFields(
+		log.Fields{
+			"component": 		      "webrtcserver",
+			"state": 				  server.State,
+			"connectionId":    		  server.ConnectionId,
+		}).Debug("webrtc server connect.")
 
 	offer, err := server.signallingClient.GetOffer(server.ConnectionId)
 	if err != nil {
@@ -119,6 +131,8 @@ func (server *WebRTCServer) Connect() {
 	_, ok := server.videoTrack.Codec().Payloader.(*codecs.H264InterleavedPayloader)
 	if ok {
 		server.Interleaved = true
+	} else {
+		server.Interleaved = false
 	}
 
 	log.WithFields(
@@ -130,16 +144,9 @@ func (server *WebRTCServer) Connect() {
 
 	// events registration
 	server.peerConnection.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
-		log.WithFields(
-			log.Fields{
-				"component": "webrtcserver",
-				"state": server.State,
-				"connectionId": server.ConnectionId,
-			}).Debug("connection state has changed.")
-
 		if connectionState == webrtc.ICEConnectionStateConnected {
 			server.changeState(CONNECTED)
-			server.StartRTCP()
+			server.startReadingRTCP()
 		} else if connectionState == webrtc.ICEConnectionStateFailed {
 			server.changeState(FAILED)
 		} else if connectionState == webrtc.ICEConnectionStateDisconnected {
@@ -148,7 +155,7 @@ func (server *WebRTCServer) Connect() {
 	})
 
 	server.peerConnection.OnICECandidate(func(candidate *webrtc.ICECandidate) {
-		if candidate == nil {
+		if candidate == nil && server.State != IDLE {
 			log.WithFields(
 				log.Fields{
 					"component": "webrtcserver",
@@ -231,33 +238,54 @@ func (server *WebRTCServer) Connect() {
 
 }
 
-func (server *WebRTCServer) StartRTCP() {
+func (server *WebRTCServer) startReadingRTCP() {
+
+	if server.State != CONNECTED {
+		return
+	}
+
+	log.WithFields(
+		log.Fields{
+			"component": 		      "webrtcserver",
+			"state": 				  server.State,
+			"connectionId":    		  server.ConnectionId,
+		}).Debug("start reading RTCP packets from client.")
+
 	// read rtcp and call handler
 	go func() {
 		senders := server.peerConnection.GetSenders()
 		if len(senders) < 1 {
-			fmt.Println("found no senders")
+			log.WithFields(
+				log.Fields{
+					"component": 		      "webrtcserver",
+					"state": 				  server.State,
+					"connectionId":    		  server.ConnectionId,
+				}).Warn("found no senders on peerConnection.")
+			return
 		}
 		sender := senders[0]
 		for {
 			if server.State != CONNECTED {
 				return
 			}
-			packets, _ := sender.ReadRTCP()
+			packets, err := sender.ReadRTCP()
+
+			if err != nil {
+				if server.State == CONNECTED {
+					log.WithFields(
+						log.Fields{
+							"component":    "webrtcserver",
+							"state":        server.State,
+							"connectionId": server.ConnectionId,
+							"error":        err.Error(),
+						}).Warn("failed to read RTCP packet. ignoring RTCP..")
+				}
+				continue
+			}
 
 			for _, packet := range packets {
 				// pass RTCP packet to jitter for handling NACKs
 				server.videoJitter.HandleRTCP(packet)
-				/*
-					log.WithFields(
-						log.Fields{
-							"component": "jitter",
-							"segmentStart": segmentStart,
-							"segmentEnd": segmentEnd,
-							"size": len(j.buffer),
-						}).Info("rtcp: got ", reflect.TypeOf(packet), " packet")
-
-				*/
 
 				switch packet := packet.(type) {
 				case *rtcp.PictureLossIndication:
@@ -310,21 +338,37 @@ func (server *WebRTCServer) StartRTCP() {
 }
 
 func (server *WebRTCServer) Disconnect() {
-	if server.peerConnection == nil{
+
+	if server.State == IDLE {
 		return
 	}
-	server.peerConnection.Close()
-	server.changeState(IDLE)
+
+	log.WithFields(
+		log.Fields{
+			"component": 		      "webrtcserver",
+			"state": 				  server.State,
+			"connectionId":    		  server.ConnectionId,
+		}).Debug("webrtc server disconnect.")
+
+	server.State = DISCONNECTED
+	if server.peerConnection != nil{
+		server.peerConnection.Close()
+	}
+	server.videoJitter.Close()
 	server.ConnectionId = ""
+	server.changeState(IDLE)
 }
 
 func (server *WebRTCServer) WriteRTP(packet *rtp.Packet) {
 	if server.State != CONNECTED {
-		if server.State == DISCONNECTED {
-			// TODO: dropping rtps on disconnect and not don't panic
-			return
-		}
-		panic("sending RTPs on a close connection")
+		log.WithFields(
+			log.Fields{
+				"component": 		"webrtcserver",
+				"state": 			server.State,
+				"connectionId": 	server.ConnectionId,
+			}).Warnf("WriteRTP was called while webrtcserver state is %s. ignoring packet..", server.State)
+		return
+		//panic("sending RTPs on a close connection")
 	}
 
 	packet.SSRC = server.videoTrack.SSRC()
@@ -333,16 +377,18 @@ func (server *WebRTCServer) WriteRTP(packet *rtp.Packet) {
 
 func (server *WebRTCServer) WriteSample(sample media.Sample, sampleType utils.SampleType) {
 	if server.State != CONNECTED {
-		if server.State == DISCONNECTED {
-			// TODO: dropping rtps on disconnect and not don't panic
-			return
-		}
-		panic("sending Sample before connection is established")
+		log.WithFields(
+			log.Fields{
+				"component": 		"webrtcserver",
+				"state": 			server.State,
+				"connectionId": 	server.ConnectionId,
+			}).Warnf("WriteSample was called while webrtcserver state is %s. ignoring packet..", server.State)
+		return
+		//panic("sending Sample before connection is established")
 	}
 
 	if sampleType == utils.VIDEO {
 		server.videoJitter.WriteSample(sample)
-		//server.videoTrack.WriteSample(sample)
 	} else {
 		server.audioTrack.WriteSample(sample)
 	}
@@ -352,15 +398,19 @@ func (server *WebRTCServer) changeState(state State) {
 	if state == server.State{
 		return
 	}
+
+	log.WithFields(
+		log.Fields{
+			"component": 	"webrtcserver",
+			"state": 		server.State,
+			"newState": 	state,
+			"connectionId": server.ConnectionId,
+		}).Debug("connection state has changed.")
+
 	server.State = state
 	if server.OnStateChangeHandler != nil {
 		server.OnStateChangeHandler(state)
 	}
-}
-
-func (server *WebRTCServer) SetListeners(onMessageHandler func(webrtc.DataChannelMessage), OnRTCPHandler func(rtcp.Packet)) {
-	server.OnMessageHandler = onMessageHandler
-	server.OnRTCPHandler = OnRTCPHandler
 }
 
 func getPayloadType(m webrtc.MediaEngine, codecType webrtc.RTPCodecType, codecName string) uint8 {

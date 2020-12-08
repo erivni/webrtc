@@ -63,7 +63,12 @@ func (j *Jitter) Close(){
 
 	if j.udpCon != nil {
 		if closeErr := j.udpCon.Close(); closeErr != nil {
-			log.Error("error closing udp connection")
+			log.WithFields(
+				log.Fields{
+					"component": "jitter",
+					"size":      len(j.buffer),
+					"error":	 closeErr.Error(),
+				}).Error("error closing udp connection.")
 		}
 	}
 }
@@ -81,7 +86,11 @@ func (j *Jitter) HandleRTCP(packet rtcp.Packet){
 			packet, ok := j.buffer[nack.PacketID]
 			j.mapSync.Unlock()
 			if ok == false{
-				log.Warn("did not find packet with SN ", nack.PacketID, " in jitter")
+				log.WithFields(
+					log.Fields{
+						"component":    "jitter",
+						"size":         len(j.buffer),
+					}).Warn("did not find packet with SN ", nack.PacketID, " in jitter")
 			}else{
 				j.track.WriteRTP(packet)
 			}

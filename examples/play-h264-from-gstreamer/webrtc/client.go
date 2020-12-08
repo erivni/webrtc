@@ -1,6 +1,7 @@
 package webrtc
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/pion/rtcp"
@@ -12,16 +13,19 @@ import (
 	"github.com/pion/webrtc/v3/pkg/media/samplebuilder"
 	log "github.com/sirupsen/logrus"
 	"os"
+	"reflect"
 )
 
-const SIGNALLING_RETRIES = 15
+const SIGNALLING_RETRIES = 60
 
 type WebRTCClient struct {
 	State            	State
-	readingRTP		 	bool
 	clientConnectionId  string
 	connectionId     	string
 	signallingClient 	signalling.SignallingClient
+
+	context				context.Context
+	contextCancel 		context.CancelFunc
 
 	peerConnection 		*webrtc.PeerConnection
 	videoTrack			*webrtc.Track
@@ -37,8 +41,21 @@ func NewWebRTCClient(signallingClient signalling.SignallingClient, onMessageHand
 }
 
 func (client *WebRTCClient) Connect(clientConnectionId string) {
+
+	if client.State == INITIATE {
+		return
+	}
+
 	client.changeState(INITIATE)
 	client.clientConnectionId = clientConnectionId
+
+	log.WithFields(
+		log.Fields{
+			"component": 		      "webrtcclient",
+			"state": 				  client.State,
+			"clientConnectionId":     client.clientConnectionId,
+		}).Debug("webrtc client connect.")
+
 	mediaEngine := webrtc.MediaEngine{}
 	mediaEngine.RegisterCodec(webrtc.NewRTPH264Codec(102, 90000))
 	mediaEngine.RegisterCodec(webrtc.NewRTPOpusCodec(111, 48000))
@@ -82,7 +99,6 @@ func (client *WebRTCClient) Connect(clientConnectionId string) {
 	// events registration
 	client.peerConnection.OnTrack(func(track *webrtc.Track, receiver *webrtc.RTPReceiver) {
 
-		// TODO: send RTCP
 		log.WithFields(
 			log.Fields{
 				"component": 		"webrtcclient",
@@ -97,14 +113,6 @@ func (client *WebRTCClient) Connect(clientConnectionId string) {
 	})
 
 	client.peerConnection.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
-		log.WithFields(
-			log.Fields{
-				"component": 		"webrtcclient",
-				"state": 			client.State,
-				"clientConnectionId":     client.clientConnectionId,
-				"connectionState": connectionState.String(),
-			}).Debug("connection state has changed.")
-
 		if connectionState == webrtc.ICEConnectionStateConnected {
 		} else if connectionState == webrtc.ICEConnectionStateFailed {
 			client.changeState(FAILED)
@@ -128,15 +136,7 @@ func (client *WebRTCClient) Connect(clientConnectionId string) {
 			}
 
 			client.connectionId = connectionId
-
-			answer, err := client.signallingClient.GetAnswer(connectionId, SIGNALLING_RETRIES)
-			if err != nil {
-				panic(err)
-			}
-
-			if err = client.peerConnection.SetRemoteDescription(*answer); err != nil {
-				panic(err)
-			}
+			client.context, client.contextCancel = client.signallingClient.GetAnswer(connectionId, SIGNALLING_RETRIES, client.handleAnswer)
 		}
 	})
 
@@ -197,28 +197,67 @@ func (client *WebRTCClient) Connect(clientConnectionId string) {
 
 }
 
-func (client *WebRTCClient) Disconnect() {
-	if client.peerConnection == nil{
+func (client *WebRTCClient) handleAnswer(answer *webrtc.SessionDescription, err error){
+
+	if client.context.Err() != nil {
+		// context got canceled
 		return
 	}
-	client.peerConnection.Close()
-	client.changeState(IDLE)
+
+	if err != nil {
+		panic(err)
+	}
+
+	if err = client.peerConnection.SetRemoteDescription(*answer); err != nil {
+		panic(err)
+	}
+}
+
+func (client *WebRTCClient) Disconnect() {
+
+	if client.State == IDLE {
+		return
+	}
+
+	log.WithFields(
+		log.Fields{
+			"component": 		      "webrtcclient",
+			"state": 				  client.State,
+			"clientConnectionId":     client.clientConnectionId,
+		}).Debug("webrtc client disconnect.")
+
+	client.State = DISCONNECTED
+	if client.contextCancel != nil {
+		client.contextCancel()
+		client.contextCancel = nil
+	}
+	if client.peerConnection != nil {
+		client.peerConnection.Close()
+	}
 	client.connectionId = ""
 	client.clientConnectionId = ""
+	client.changeState(IDLE)
 }
 
 func (client *WebRTCClient) StartReadingRTPs(){
+
+	log.WithFields(
+		log.Fields{
+			"component": 		      "webrtcclient",
+			"state": 				  client.State,
+			"clientConnectionId":     client.clientConnectionId,
+		}).Debug("start reading rtps packets.")
+
 	go func() {
-		client.readingRTP = true
 		samplebuilder := samplebuilder.New(50, &codecs.H264Packet{})
 
 		for {
-			if client.State != CONNECTED {
-				panic("read rtp before connection is ready")
-			}
-
-			if ! client.readingRTP {
+			if client.State == DISCONNECTED || client.State == FAILED {
+				// do not read if client connection is closed
 				return
+			} else if client.State != CONNECTED {
+				// panic since we have a race condition
+				panic("read rtp before connection is ready")
 			}
 
 			// Read RTP packets being sent to Pion
@@ -232,6 +271,8 @@ func (client *WebRTCClient) StartReadingRTPs(){
 						"ssrc":         client.videoTrack.SSRC(),
 						"error":        err,
 					}).Error("failed to read RTP packet.")
+				// TODO: ignore?
+				continue
 			}
 			samplebuilder.Push(packet)
 
@@ -239,21 +280,26 @@ func (client *WebRTCClient) StartReadingRTPs(){
 			if sample != nil {
 				// end of sample
 				sample.Samples = 90000/25
-				client.OnSampleHandler(*sample, utils.UI, utils.VIDEO) // TODO: mark as ui video only
+				client.OnSampleHandler(*sample, utils.UI, utils.VIDEO) // mark as ui video only
 			}
 		}
 	}()
 }
 
-func (client *WebRTCClient) StopReadingRTP(){
-	client.readingRTP = false
-}
-
 // WriteRTCP gets a RTCP packet from the TC, switches the SSRC and forwards to the UI
-func (client *WebRTCClient) WriteRTCP(packet rtcp.Packet) {
+func (client *WebRTCClient) WriteRTCP(packet rtcp.Packet) error {
+
+	log.WithFields(
+		log.Fields{
+			"component":          "webrtcclient",
+			"state":              client.State,
+			"clientConnectionId": client.clientConnectionId,
+		}).Debugf("write rtcp packet %s", reflect.TypeOf(packet))
+
 	if client.State != CONNECTED {
-		panic("write rtcp called while client state is not connected")
+		return errors.New(fmt.Sprintf("write rtcp called while client state is set to %s", client.State))
 	}
+
 	var newPacket rtcp.Packet
 	switch packet.(type) {
 
@@ -295,26 +341,38 @@ func (client *WebRTCClient) WriteRTCP(packet rtcp.Packet) {
 					"ssrc":               client.videoTrack.SSRC(),
 					"error":              errSend,
 				}).Error("failed to send RTCP packet.")
+			return errSend
 		}
 	}
+
+	return nil
 }
 
 func (client *WebRTCClient) changeState(state State) {
 	if state == client.State{
 		return
 	}
+
+	log.WithFields(
+		log.Fields{
+			"component": 	"webrtcclient",
+			"state": 		client.State,
+			"newState": 	state,
+			"connectionId": client.connectionId,
+		}).Debug("connection state has changed.")
+
 	client.State = state
 	if client.OnStateChangeHandler != nil {
 		client.OnStateChangeHandler(state)
 	}
 }
 
-func (client *WebRTCClient) SetListeners(onMessageHandler func(webrtc.DataChannelMessage), onSampleHandler func(media.Sample, utils.StreamType, utils.SampleType)) {
-	client.OnMessageHandler = onMessageHandler
-	client.OnSampleHandler = onSampleHandler
-}
-
 func (client *WebRTCClient) SendDataMessage(message string) error{
+
+	if client.State != CONNECTED{
+		return errors.New(fmt.Sprintf("trying to send message while client state is set to %s", client.State))
+	}
+
 	errorMessage := ""
 	if client.dataChannel.ReadyState() != webrtc.DataChannelStateOpen{
 		errorMessage = "cannot send data message. data channel is in " + string(client.dataChannel.ReadyState()) + " state"

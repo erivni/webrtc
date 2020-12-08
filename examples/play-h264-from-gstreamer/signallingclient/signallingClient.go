@@ -2,6 +2,7 @@ package signallingclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/pion/webrtc/v3"
@@ -11,7 +12,8 @@ import (
 	"time"
 )
 
-const RETRY_INTERVAL = 5
+const GET_OFFER_RETRY_INTERVAL = 5
+const GET_ANSWER_RETRY_INTERVAL = 1
 
 type SignallingClient struct{
 	Url string
@@ -31,8 +33,8 @@ func (signalingClient *SignallingClient) GetQueue() (string, error){
 				"component": "signallingClient",
 				"url": url,
 				"error": err.Error(),
-			}).Error("failed to get a free connection, will retry in ", RETRY_INTERVAL, "s.")
-		time.Sleep(RETRY_INTERVAL * time.Second)
+			}).Error("failed to get a free connection, will retry in ", GET_OFFER_RETRY_INTERVAL, "s.")
+		time.Sleep(GET_OFFER_RETRY_INTERVAL * time.Second)
 		return signalingClient.GetQueue()
 	}
 
@@ -45,8 +47,8 @@ func (signalingClient *SignallingClient) GetQueue() (string, error){
 				"url": url,
 				"httpCode": response.StatusCode,
 				"error": string(body),
-			}).Warn("no waiting offers are available. will retry in ", RETRY_INTERVAL, "s.")
-		time.Sleep(RETRY_INTERVAL * time.Second)
+			}).Warn("no waiting offers are available. will retry in ", GET_OFFER_RETRY_INTERVAL, "s.")
+		time.Sleep(GET_OFFER_RETRY_INTERVAL * time.Second)
 		return signalingClient.GetQueue()
 	}
 
@@ -90,7 +92,7 @@ func (signalingClient *SignallingClient) GetQueue() (string, error){
 			"url": url,
 			"httpCode": response.StatusCode,
 			"connectionId": connection["connectionId"],
-		}).Info("got a valid connectionId")
+		}).Info("got a valid client connectionId")
 
 	return connection["connectionId"], nil
 
@@ -157,7 +159,7 @@ func (signalingClient *SignallingClient) GetOffer(connectionId string) (*webrtc.
 			"url": url,
 			"httpCode": response.StatusCode,
 			"connectionId": connectionId,
-		}).Info("got a valid offer")
+		}).Info("got a valid client offer")
 
 	return &offer, nil
 }
@@ -254,7 +256,7 @@ func (signalingClient *SignallingClient) SendOffer(offer webrtc.SessionDescripti
 			"url": url,
 			"httpCode": response.StatusCode,
 			"connectionId": connection["connectionId"],
-		}).Info("got a valid connectionId")
+		}).Info("got a valid application connectionId")
 
 	return connection["connectionId"], nil
 }
@@ -309,21 +311,33 @@ func (signalingClient *SignallingClient) SendAnswer(connectionId string, answer 
 	return nil
 }
 
-func (signalingClient *SignallingClient) GetAnswer(connectionId string, tries int) (*webrtc.SessionDescription, error) {
+func (signalingClient *SignallingClient) GetAnswer(connectionId string, tries int, callback func(*webrtc.SessionDescription, error)) (context.Context, context.CancelFunc) {
+
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	go signalingClient.getAnswer(connectionId, tries, 0, callback, ctx, ctxCancel)
+	return ctx, ctxCancel
+}
+
+func (signalingClient *SignallingClient) getAnswer(connectionId string, tries int, currentTry int, callback func(*webrtc.SessionDescription, error), ctx context.Context, ctxCancel context.CancelFunc) {
+
+	if ctx.Err() != nil {
+		callback(nil, nil)
+		return
+	}
 
 	url := signalingClient.Url + "/signaling/1.0/connections/" + connectionId + "/answer"
 	response, err := http.Get(url)
 	if err != nil {
 		log.WithFields(
 			log.Fields{
-				"component": "signallingClient",
-				"url": url,
+				"component":    "signallingClient",
+				"url":          url,
 				"connectionId": connectionId,
-				"error": err,
-			}).Warn("failed to get an answer for connectionId")
-		time.Sleep(RETRY_INTERVAL * time.Second)
-		tries--
-		if tries == 0 {
+				"error":        err,
+			}).Warnf("try #%d/%d: no server answer available yet. request failed.", currentTry, tries)
+		time.Sleep(GET_ANSWER_RETRY_INTERVAL * time.Second)
+		currentTry++
+		if currentTry == tries {
 			log.WithFields(
 				log.Fields{
 					"component":    "signallingClient",
@@ -331,47 +345,51 @@ func (signalingClient *SignallingClient) GetAnswer(connectionId string, tries in
 					"connectionId": connectionId,
 					"error":        err,
 				}).Error("failed to get an answer for connectionId. giving up..")
-			return nil, errors.New("failed to get answer after retires")
+			callback(nil, errors.New("failed to get answer after retires"))
+			return
 		}
-		return signalingClient.GetAnswer(connectionId, tries)
+		signalingClient.getAnswer(connectionId, tries, currentTry, callback, ctx, ctxCancel)
+		return
 	}
 
 	// we read the body even if status code is not success in order to read the error
 	body, err := ioutil.ReadAll(response.Body)
-
 	if response.StatusCode != http.StatusOK {
 		log.WithFields(
 			log.Fields{
-				"component": "signallingClient",
-				"url": url,
-				"httpCode": response.StatusCode,
+				"component":    "signallingClient",
+				"url":          url,
+				"httpCode":     response.StatusCode,
 				"connectionId": connectionId,
-				"error": string(body),
-			}).Warn("failed to get a valid response for getAnswer")
-		time.Sleep(RETRY_INTERVAL * time.Second)
-		tries--
-		if tries == 0 {
+				"error":        string(body),
+			}).Warnf("try #%d/%d: no server answer available yet", currentTry, tries)
+		time.Sleep(GET_ANSWER_RETRY_INTERVAL * time.Second)
+		currentTry++
+		if currentTry == tries {
 			log.WithFields(
 				log.Fields{
 					"component":    "signallingClient",
 					"url":          url,
 					"connectionId": connectionId,
 				}).Error("failed to get an answer for connectionId. giving up..")
-			return nil, errors.New("failed to get answer after retires")
+			callback(nil, errors.New("failed to get answer after retires"))
+			return
 		}
-		return signalingClient.GetAnswer(connectionId, tries)
+		signalingClient.getAnswer(connectionId, tries, currentTry, callback, ctx, ctxCancel)
+		return
 	}
 
 	if err != nil {
 		log.WithFields(
 			log.Fields{
-				"component": "signallingClient",
-				"url": url,
-				"httpCode": response.StatusCode,
+				"component":    "signallingClient",
+				"url":          url,
+				"httpCode":     response.StatusCode,
 				"connectionId": connectionId,
-				"error": err.Error(),
+				"error":        err.Error(),
 			}).Error("failed to read answer response")
-		return nil, err
+		callback(nil, err)
+		return
 	}
 
 	var answer webrtc.SessionDescription
@@ -379,22 +397,25 @@ func (signalingClient *SignallingClient) GetAnswer(connectionId string, tries in
 	if err != nil {
 		log.WithFields(
 			log.Fields{
-				"component": "signallingClient",
-				"url": url,
-				"httpCode": response.StatusCode,
+				"component":    "signallingClient",
+				"url":          url,
+				"httpCode":     response.StatusCode,
 				"connectionId": connectionId,
-				"error": err.Error(),
+				"error":        err.Error(),
 			}).Error("failed to convert response to a valid webrtc answer")
-		return nil, err
+		callback(nil, err)
+		return
 	}
 
 	log.WithFields(
 		log.Fields{
-			"component": "signallingClient",
-			"url": url,
-			"httpCode": response.StatusCode,
+			"component":    "signallingClient",
+			"url":          url,
+			"httpCode":     response.StatusCode,
 			"connectionId": connectionId,
-		}).Info("got a valid answer")
+		}).Info("got a valid application answer")
 
-	return &answer, nil
+	ctx.Done()
+	callback(&answer, nil)
+	return
 }

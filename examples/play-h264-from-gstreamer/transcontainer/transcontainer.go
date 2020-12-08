@@ -7,10 +7,12 @@ import (
 	"github.com/pion/rtcp"
 	pion "github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/gst"
+	signalling "github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/signallingclient"
 	"github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/utils"
 	"github.com/pion/webrtc/v3/examples/play-h264-from-gstreamer/webrtc"
 	"github.com/pion/webrtc/v3/pkg/media"
 	log "github.com/sirupsen/logrus"
+	"reflect"
 	"strings"
 )
 
@@ -18,26 +20,6 @@ const (
 	maxDonValue = ^uint16(0)
 	donSize = 2
 )
-
-type State uint8
-const (
-	IDLE			State = 0
-	STARTED         State = 1
-	STOPPED         State = 2
-)
-func (s State) String() string {
-	switch s {
-	case IDLE:
-		return "IDLE"
-	case STARTED:
-		return "STARTED"
-	case STOPPED:
-		return "STOPPED"
-	default:
-		return fmt.Sprintf("%d", int(s))
-	}
-}
-
 
 type StreamingState uint8
 const (
@@ -75,7 +57,7 @@ type Transcontainer struct {
 	State State
 	StreamingState
 
-	// TODO: can we have a connectionId for login
+	// TODO: do we use it as a sessionid
 	//connectionId string
 
 	uiConnection *webrtc.WebRTCClient
@@ -88,51 +70,115 @@ type Transcontainer struct {
 	OnStreamingStateChangeHandler func(StreamingState)
 }
 
-func NewTranscontainer(uiConnection *webrtc.WebRTCClient, clientConnection *webrtc.WebRTCServer, abrPlayer *gst.Pipeline, onStateChangeHandler func(State), OnStreamingStateChangeHandler func(StreamingState)) *Transcontainer {
-	return &Transcontainer{
-		State:                IDLE,
+func NewTranscontainer(signallingClient signalling.SignallingClient, onStateChangeHandler func(State), OnStreamingStateChangeHandler func(StreamingState)) *Transcontainer {
+	t := &Transcontainer{
+		State:                STOP,
 		StreamingState:       UI,
 		don:				  0,
-		uiConnection:         uiConnection,
-		clientConnection:     clientConnection,
-		abrPlayer:            abrPlayer,
 		OnStateChangeHandler: onStateChangeHandler,
 		OnStreamingStateChangeHandler: OnStreamingStateChangeHandler,
 	}
+
+	t.uiConnection = webrtc.NewWebRTCClient(signallingClient, t.processUiMessage, t.processUiStateChange, t.processSample )
+	t.clientConnection = webrtc.NewWebRTCServer(signallingClient, t.processClientMessage, t.processClientStateChange, t.processRTCP)
+
+	return t
 }
 
 func (t *Transcontainer) Start() {
 
+	if t.State == START {
+		return
+	}
 
-	t.changeState(STARTED)
+	log.WithFields(
+		log.Fields{
+			"component":      "transcontainer",
+			"state":          t.State,
+			"streamingState": t.StreamingState,
+		}).Info("starting transcontainer..")
+
+	t.changeState(START)
+
+	// waiting to serve clients
+	t.clientConnection.Connect()
+}
+
+func (t *Transcontainer) Stream() {
+
+	if t.State == STREAM{
+		return
+	}
+
 	log.WithFields(
 		log.Fields{
 			"component": 		"transcontainer",
 			"state":			t.State,
 			"streamingState":	t.StreamingState,
-		}).Info("starting transcontainer")
-
-	t.uiConnection.SetListeners(t.processUiMessage, t.processSample)
-	t.clientConnection.SetListeners(t.processClientMessage, t.processRTCP)
-	t.abrPlayer.OnSampleHandler = t.processSample
+		}).Info("start streaming transcontainer")
 
 	t.don = 0
 
 	// start reading from ui connection
 	t.uiConnection.StartReadingRTPs()
+
+	pipelineStr := fmt.Sprintf("souphttpsrc location=http://hyperscale.coldsnow.net:8080/bbb_360_abr.m3u8 ! hlsdemux ! decodebin3 name=demux caps=video/x-h264,stream-format=byte-stream ! appsink name=video demux. ! queue ! audioconvert ! audioresample ! opusenc ! appsink name=audio")
+	log.WithFields(
+		log.Fields{
+			"component": "lifecycle",
+			"state"	: 	 "start",
+			"abrPlayer": pipelineStr,
+		}).Debug("setting abrPlayer.")
+
+	t.abrPlayer = gst.CreatePipeline(pipelineStr, nil, nil, "abr", t.processSample)
 	t.abrPlayer.Start()
+
+	t.changeState(STREAM)
+}
+
+func (t *Transcontainer) Stop() {
+
+	if t.State == STOP {
+		return
+	}
+
+	log.WithFields(
+		log.Fields{
+			"component": 		"transcontainer",
+			"state":			t.State,
+			"streamingState":	t.StreamingState,
+		}).Info("stopping transcontainer...")
+
+	t.uiConnection.Disconnect()
+	t.clientConnection.Disconnect()
+	if t.abrPlayer != nil{
+		t.abrPlayer.Stop()
+	}
+
+	t.changeState(STOP)
+	t.changeStreamingState(UI)
 }
 
 // ProcessRTCP receives RTCP messages from the client connection and makes decisions based on packet type and state
 // e.g. when in UI we can decide to lower bitrate. when in ABR we can decide to lock on a different ABR bitrate
 func (t *Transcontainer) processRTCP(packet rtcp.Packet){
 
+	if t.State != STREAM {
+		log.WithFields(
+			log.Fields{
+				"component": 		"transcontainer",
+				"state": 			t.State,
+				"steamingState": 	t.StreamingState,
+			}).Warnf("processRTCP called while transcontainer state is %s. ignoring packet..", t.State)
+		return
+	}
+
 	log.WithFields(
 		log.Fields{
 			"component": 		"transcontainer",
 			"state": 			t.State,
 			"steamingState": 	t.StreamingState,
-		}).Trace("process rtcp...")
+		}).Tracef("process %s rtcp packet ", reflect.TypeOf(packet))
 
 	switch packet := packet.(type) {
 	case *rtcp.PictureLossIndication:
@@ -161,6 +207,16 @@ func (t *Transcontainer) processRTCP(packet rtcp.Packet){
 
 func (t *Transcontainer) processSample(sample media.Sample, streamType utils.StreamType, sampleType utils.SampleType){
 
+	if t.State != STREAM {
+		log.WithFields(
+			log.Fields{
+				"component": 		"transcontainer",
+				"state": 			t.State,
+				"steamingState": 	t.StreamingState,
+			}).Warnf("processSample called while transcontainer state is %s. ignoring packet..", t.State)
+		return
+	}
+
 	if streamType == utils.UI && t.StreamingState == SWITCH_TO_UI {
 		if sampleType == utils.VIDEO && isIframe(sample.Data) {
 			t.changeStreamingState(UI)
@@ -181,6 +237,7 @@ func (t *Transcontainer) processSample(sample media.Sample, streamType utils.Str
 			"steamingState": 	t.StreamingState,
 			"streamType":		streamType,
 			"sampleType":		sampleType,
+			"interleaved": 		t.clientConnection.Interleaved,
 		}).Trace("sending sample...")
 
 	if t.clientConnection.Interleaved && sampleType == utils.VIDEO {
@@ -197,18 +254,40 @@ func (t *Transcontainer) processSample(sample media.Sample, streamType utils.Str
 }
 
 func (t *Transcontainer) processUiMessage(msg pion.DataChannelMessage){
+
+	if t.State != STREAM {
+		log.WithFields(
+			log.Fields{
+				"component": 		"transcontainer",
+				"state": 			t.State,
+				"steamingState": 	t.StreamingState,
+			}).Warnf("processUiMessage called while transcontainer state is %s. ignoring packet..", t.State)
+		return
+	}
+
 	log.WithFields(
 		log.Fields{
 			"component": "transcontainer",
 			"state": 			t.State,
 			"steamingState": 	t.StreamingState,
-			"datachannelMsg": string(msg.Data),
+			"datachannelMsg": 	string(msg.Data),
 		}).Info("got message from ui.")
 
 	t.processMessage(string(msg.Data))
 }
 
 func (t *Transcontainer) processClientMessage(msg pion.DataChannelMessage){
+
+	if t.State != STREAM {
+		log.WithFields(
+			log.Fields{
+				"component": 		"transcontainer",
+				"state": 			t.State,
+				"steamingState": 	t.StreamingState,
+			}).Warnf("processClientMessage called while transcontainer state is %s. ignoring packet..", t.State)
+		return
+	}
+
 	message := string(msg.Data)
 	log.WithFields(
 		log.Fields{
@@ -224,27 +303,18 @@ func (t *Transcontainer) processClientMessage(msg pion.DataChannelMessage){
 	t.processMessage(message)
 }
 
-func (t *Transcontainer) Stop() {
-
-	log.WithFields(
-		log.Fields{
-			"component": 		"transcontainer",
-			"state":			t.State,
-			"streamingState":	t.StreamingState,
-		}).Debug("stopping transcontainer...")
-
-	t.changeState(STOPPED)
-	t.changeStreamingState(UI)
-
-	t.uiConnection.StopReadingRTP()
-	t.abrPlayer.Stop()
-
-}
-
 func (t *Transcontainer) changeState(state State) {
+
 	if state == t.State{
 		return
 	}
+
+	log.WithFields(
+		log.Fields{
+			"component": 	"transcontainer",
+			"state":  		t.State,
+			"newState":     state,
+		}).Debug("transcontainer changed state.")
 	t.State = state
 	if t.OnStateChangeHandler != nil {
 		t.OnStateChangeHandler(state)
@@ -308,6 +378,86 @@ func (t *Transcontainer) processMessage(message string){
 		break;
 	}
 
+}
+
+func (t *Transcontainer) processClientStateChange(state webrtc.State) {
+	log.WithFields(
+		log.Fields{
+			"component": 			"transcontainer",
+			"state":				 t.State,
+			"uiConnectionState":	 t.uiConnection.State,
+			"clientConnectionState": t.clientConnection.State,
+			"newClientConnectionState":		state,
+		}).Debug("client connection state changed")
+
+	switch state {
+	case webrtc.INITIATE:
+		log.WithFields(
+			log.Fields{
+				"component": 			"transcontainer",
+				"state":				 t.State,
+				"uiConnectionState":	 t.uiConnection.State,
+				"clientConnectionState": t.clientConnection.State,
+				"newClientConnectionState":		state,
+			}).Info("client has a waiting offer, staring ui connection")
+		t.uiConnection.Connect(t.clientConnection.ConnectionId)
+		break
+	case webrtc.CONNECTED:
+		if t.uiConnection.State == webrtc.CONNECTED && t.State != STREAM {
+			log.WithFields(
+				log.Fields{
+					"component": 			"transcontainer",
+					"state":				 t.State,
+					"uiConnectionState":	 t.uiConnection.State,
+					"clientConnectionState": t.clientConnection.State,
+					"newClientConnectionState":		state,
+				}).Info("client and ui connections are ready, starting transcontainer")
+			t.Stream()
+		}
+		break
+	case webrtc.FAILED, webrtc.DISCONNECTED: // being called by the webrtc
+		t.Stop()
+		break
+	case webrtc.IDLE: // should be called only on client.Disconnect
+		break
+	default:
+		break
+	}
+}
+
+func (t *Transcontainer) processUiStateChange(state webrtc.State) {
+
+	log.WithFields(
+		log.Fields{
+			"component": 			"transcontainer",
+			"state":				 t.State,
+			"uiConnectionState":	 t.uiConnection.State,
+			"clientConnectionState": t.clientConnection.State,
+			"newUiConnectionState":	 state,
+		}).Debug("ui connection changed")
+
+	switch state {
+	case webrtc.CONNECTED:
+		if t.clientConnection.State == webrtc.CONNECTED && t.State != STREAM {
+			log.WithFields(
+				log.Fields{
+					"component": 			"transcontainer",
+					"state":				 t.State,
+					"uiConnectionState":	 t.uiConnection.State,
+					"clientConnectionState": t.clientConnection.State,
+					"newUiConnectionState":	 state,
+				}).Info("client and ui connections are ready, starting transcontainer and abrPlayer")
+			t.Stream()
+		}
+		break
+	case webrtc.FAILED, webrtc.DISCONNECTED: // being called by the webrtc
+		t.Stop()
+		break
+	case webrtc.INITIATE, webrtc.IDLE: // should be called only on ui.Disconnect
+		break
+	default:
+		break
+	}
 }
 
 func convertStringToTranscontainerState(state string) StreamingState{
