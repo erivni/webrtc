@@ -12,7 +12,7 @@ let log = msg => {
   let innerHtml = document.getElementById('logs').innerHTML;
   let count = (innerHtml.match(/<br>/g) || []).length;
 
-  if (count >= 15) { // rolling logs
+  if (count >= 5) { // rolling logs
     innerHtml = innerHtml.substr(4); // ignore first <br>
     let secondBr = innerHtml.indexOf("<br>");
     innerHtml = innerHtml.substr(secondBr);
