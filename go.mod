@@ -19,3 +19,5 @@ require (
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/net v0.0.0-20201002202402-0a1ea396d57c
 )
+
+replace github.com/pion/rtp => github.com/erivni/rtp v1.6.1-interleaved2
