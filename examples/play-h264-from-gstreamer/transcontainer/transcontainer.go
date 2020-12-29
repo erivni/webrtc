@@ -133,6 +133,13 @@ func (t *Transcontainer) Stream() {
 	t.abrPlayer = gst.CreatePipeline(pipelineStr, nil, nil, "abr", t.processSample)
 	t.abrPlayer.Start()
 
+	log.WithFields(
+                log.Fields{
+                        "component": "lifecycle",
+                        "state" :        "start",
+                }).Info("sending pli..")
+
+        t.uiConnection.WriteRTCP(&rtcp.PictureLossIndication{})
 	t.changeState(STREAM)
 }
 
