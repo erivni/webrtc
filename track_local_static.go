@@ -196,7 +196,7 @@ func (s *TrackLocalStaticSample) Bind(t TrackLocalContext) (RTPCodecParameters, 
 		return codec, err
 	}
 
-	s.Packetizer = rtp.NewPacketizer(
+	s.Packetizer = rtp.NewInterleavedPacketizer(
 		rtpOutboundMTU,
 		0, // Value is handled when writing
 		0, // Value is handled when writing
@@ -230,6 +230,33 @@ func (s *TrackLocalStaticSample) WriteSample(sample media.Sample) error {
 
 	samples := sample.Duration.Seconds() * clockRate
 	packets := p.(rtp.Packetizer).Packetize(sample.Data, uint32(samples))
+
+	writeErrs := []error{}
+	for _, p := range packets {
+		if err := s.RtpTrack.WriteRTP(p); err != nil {
+			writeErrs = append(writeErrs, err)
+		}
+	}
+
+	return util.FlattenErrs(writeErrs)
+}
+
+// WriteSample writes a Sample to the TrackLocalStaticSample
+// If one PeerConnection fails the packets will still be sent to
+// all PeerConnections. The error message will contain the ID of the failed
+// PeerConnections so you can remove them
+func (s *TrackLocalStaticSample) WriteInterleavedSample(sample media.Sample) error {
+	s.RtpTrack.mu.RLock()
+	p := s.Packetizer
+	clockRate := s.ClockRate
+	s.RtpTrack.mu.RUnlock()
+
+	if p == nil {
+		return nil
+	}
+
+	samples := sample.Duration.Seconds() * clockRate
+	packets := p.(rtp.Packetizer).PacketizeInterleaved(sample.Data, uint32(samples))
 
 	writeErrs := []error{}
 	for _, p := range packets {
