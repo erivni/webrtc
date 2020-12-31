@@ -118,7 +118,7 @@ func (s *TrackLocalStaticRTP) WriteRTP(p *rtp.Packet) error {
 	for _, b := range s.bindings {
 		outboundPacket.Header.SSRC = uint32(b.ssrc)
 		outboundPacket.Header.PayloadType = uint8(b.payloadType)
-		fmt.Println("rtp: timestamp:", time.Now().Format("2006-01-02 15:04:05.000000"),  " ssrc: " , outboundPacket.Header.SSRC, " sn: ", p.SequenceNumber, " timestamp: ", p.Timestamp)
+		fmt.Println("rtp: now:", time.Now().Format("2006-01-02 15:04:05.000000"),  " ssrc: " , outboundPacket.Header.SSRC, " sn: ", p.SequenceNumber, " timestamp: ", p.Timestamp)
 		if _, err := b.writeStream.WriteRTP(&outboundPacket.Header, outboundPacket.Payload); err != nil {
 			writeErrs = append(writeErrs, err)
 		}
