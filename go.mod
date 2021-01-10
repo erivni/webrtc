@@ -22,4 +22,4 @@ require (
 	golang.org/x/net v0.0.0-20201201195509-5d6afe98e0b7
 )
 
-replace github.com/pion/rtp => github.com/erivni/rtp v1.6.2-0.20201230112635-68b5af290974
+replace github.com/pion/rtp => github.com/erivni/rtp v1.6.2-0.20201231145549-3b16dff7f845
