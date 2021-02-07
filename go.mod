@@ -20,6 +20,7 @@ require (
 	github.com/sclevine/agouti v3.0.0+incompatible
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/net v0.0.0-20201201195509-5d6afe98e0b7
+	github.com/sirupsen/logrus v1.7.0
 )
 
 replace github.com/pion/rtp => github.com/erivni/rtp v1.6.2-0.20210119132037-141e9763cde7

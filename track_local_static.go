@@ -3,12 +3,12 @@
 package webrtc
 
 import (
-	"strings"
-	"sync"
-
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3/internal/util"
 	"github.com/pion/webrtc/v3/pkg/media"
+	log "github.com/sirupsen/logrus"
+	"strings"
+	"sync"
 )
 
 // trackBinding is a single bind for a Track
@@ -117,6 +117,13 @@ func (s *TrackLocalStaticRTP) WriteRTP(p *rtp.Packet) error {
 	for _, b := range s.bindings {
 		outboundPacket.Header.SSRC = uint32(b.ssrc)
 		outboundPacket.Header.PayloadType = uint8(b.payloadType)
+		log.WithFields(
+			log.Fields{
+				"component": "webrtc",
+				"ssrc":      outboundPacket.Header.SSRC,
+				"timestamp": p.Timestamp,
+			}).Trace("outgoing. SN: ", p.SequenceNumber)
+		//fmt.Println("rtp: now:", time.Now().Format("2006-01-02 15:04:05.000"), " sn: ", p.SequenceNumber, " ssrc: ", outboundPacket.Header.SSRC, " timestamp: ", p.Timestamp)
 		if _, err := b.writeStream.WriteRTP(&outboundPacket.Header, outboundPacket.Payload); err != nil {
 			writeErrs = append(writeErrs, err)
 		}
