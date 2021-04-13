@@ -3,12 +3,13 @@
 package webrtc
 
 import (
+	"strings"
+	"sync"
+
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3/internal/util"
 	"github.com/pion/webrtc/v3/pkg/media"
 	log "github.com/sirupsen/logrus"
-	"strings"
-	"sync"
 )
 
 // trackBinding is a single bind for a Track
@@ -225,7 +226,7 @@ func (s *TrackLocalStaticSample) Unbind(t TrackLocalContext) error {
 // If one PeerConnection fails the packets will still be sent to
 // all PeerConnections. The error message will contain the ID of the failed
 // PeerConnections so you can remove them
-func (s *TrackLocalStaticSample) WriteSample(sample media.Sample) error {
+func (s *TrackLocalStaticSample) WriteSample(sample media.Sample, onRtpPacket func(*rtp.Packet)) error {
 	s.RtpTrack.mu.RLock()
 	p := s.Packetizer
 	clockRate := s.ClockRate
@@ -243,6 +244,9 @@ func (s *TrackLocalStaticSample) WriteSample(sample media.Sample) error {
 		if err := s.RtpTrack.WriteRTP(p); err != nil {
 			writeErrs = append(writeErrs, err)
 		}
+		if onRtpPacket != nil {
+			onRtpPacket(p)
+		}
 	}
 
 	return util.FlattenErrs(writeErrs)
@@ -252,7 +256,7 @@ func (s *TrackLocalStaticSample) WriteSample(sample media.Sample) error {
 // If one PeerConnection fails the packets will still be sent to
 // all PeerConnections. The error message will contain the ID of the failed
 // PeerConnections so you can remove them
-func (s *TrackLocalStaticSample) WriteInterleavedSample(sample media.Sample) error {
+func (s *TrackLocalStaticSample) WriteInterleavedSample(sample media.Sample, onRtpPacket func(*rtp.Packet)) error {
 	s.RtpTrack.mu.RLock()
 	p := s.Packetizer
 	clockRate := s.ClockRate
@@ -269,6 +273,9 @@ func (s *TrackLocalStaticSample) WriteInterleavedSample(sample media.Sample) err
 	for _, p := range packets {
 		if err := s.RtpTrack.WriteRTP(p); err != nil {
 			writeErrs = append(writeErrs, err)
+		}
+		if onRtpPacket != nil {
+			onRtpPacket(p)
 		}
 	}
 
