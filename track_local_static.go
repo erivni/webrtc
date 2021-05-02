@@ -9,6 +9,7 @@ import (
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3/internal/util"
 	"github.com/pion/webrtc/v3/pkg/media"
+	log "github.com/sirupsen/logrus"
 )
 
 // trackBinding is a single bind for a Track
@@ -136,6 +137,12 @@ func (s *TrackLocalStaticRTP) writeRTP(p *rtp.Packet) error {
 	for _, b := range s.bindings {
 		p.Header.SSRC = uint32(b.ssrc)
 		p.Header.PayloadType = uint8(b.payloadType)
+		log.WithFields(
+			log.Fields{
+				"component": "webrtc",
+				"ssrc":      p.Header.SSRC,
+				"timestamp": p.Timestamp,
+			}).Trace("outgoing. SN: ", p.SequenceNumber)
 		if _, err := b.writeStream.WriteRTP(&p.Header, p.Payload); err != nil {
 			writeErrs = append(writeErrs, err)
 		}
@@ -166,9 +173,9 @@ func (s *TrackLocalStaticRTP) Write(b []byte) (n int, err error) {
 // TrackLocalStaticSample is a TrackLocal that has a pre-set codec and accepts Samples.
 // If you wish to send a RTP Packet use TrackLocalStaticRTP
 type TrackLocalStaticSample struct {
-	packetizer rtp.Packetizer
-	rtpTrack   *TrackLocalStaticRTP
-	clockRate  float64
+	Packetizer rtp.Packetizer
+	RtpTrack   *TrackLocalStaticRTP
+	ClockRate  float64
 }
 
 // NewTrackLocalStaticSample returns a TrackLocalStaticSample
@@ -179,40 +186,40 @@ func NewTrackLocalStaticSample(c RTPCodecCapability, id, streamID string) (*Trac
 	}
 
 	return &TrackLocalStaticSample{
-		rtpTrack: rtpTrack,
+		RtpTrack: rtpTrack,
 	}, nil
 }
 
 // ID is the unique identifier for this Track. This should be unique for the
 // stream, but doesn't have to globally unique. A common example would be 'audio' or 'video'
 // and StreamID would be 'desktop' or 'webcam'
-func (s *TrackLocalStaticSample) ID() string { return s.rtpTrack.ID() }
+func (s *TrackLocalStaticSample) ID() string { return s.RtpTrack.ID() }
 
 // StreamID is the group this track belongs too. This must be unique
-func (s *TrackLocalStaticSample) StreamID() string { return s.rtpTrack.StreamID() }
+func (s *TrackLocalStaticSample) StreamID() string { return s.RtpTrack.StreamID() }
 
 // Kind controls if this TrackLocal is audio or video
-func (s *TrackLocalStaticSample) Kind() RTPCodecType { return s.rtpTrack.Kind() }
+func (s *TrackLocalStaticSample) Kind() RTPCodecType { return s.RtpTrack.Kind() }
 
 // Codec gets the Codec of the track
 func (s *TrackLocalStaticSample) Codec() RTPCodecCapability {
-	return s.rtpTrack.Codec()
+	return s.RtpTrack.Codec()
 }
 
 // Bind is called by the PeerConnection after negotiation is complete
 // This asserts that the code requested is supported by the remote peer.
 // If so it setups all the state (SSRC and PayloadType) to have a call
 func (s *TrackLocalStaticSample) Bind(t TrackLocalContext) (RTPCodecParameters, error) {
-	codec, err := s.rtpTrack.Bind(t)
+	codec, err := s.RtpTrack.Bind(t)
 	if err != nil {
 		return codec, err
 	}
 
-	s.rtpTrack.mu.Lock()
-	defer s.rtpTrack.mu.Unlock()
+	s.RtpTrack.mu.Lock()
+	defer s.RtpTrack.mu.Unlock()
 
 	// We only need one packetizer
-	if s.packetizer != nil {
+	if s.Packetizer != nil {
 		return codec, nil
 	}
 
@@ -221,7 +228,7 @@ func (s *TrackLocalStaticSample) Bind(t TrackLocalContext) (RTPCodecParameters, 
 		return codec, err
 	}
 
-	s.packetizer = rtp.NewPacketizer(
+	s.Packetizer = rtp.NewInterleavedPacketizer(
 		rtpOutboundMTU,
 		0, // Value is handled when writing
 		0, // Value is handled when writing
@@ -229,25 +236,25 @@ func (s *TrackLocalStaticSample) Bind(t TrackLocalContext) (RTPCodecParameters, 
 		rtp.NewRandomSequencer(),
 		codec.ClockRate,
 	)
-	s.clockRate = float64(codec.RTPCodecCapability.ClockRate)
+	s.ClockRate = float64(codec.RTPCodecCapability.ClockRate)
 	return codec, nil
 }
 
 // Unbind implements the teardown logic when the track is no longer needed. This happens
 // because a track has been stopped.
 func (s *TrackLocalStaticSample) Unbind(t TrackLocalContext) error {
-	return s.rtpTrack.Unbind(t)
+	return s.RtpTrack.Unbind(t)
 }
 
 // WriteSample writes a Sample to the TrackLocalStaticSample
 // If one PeerConnection fails the packets will still be sent to
 // all PeerConnections. The error message will contain the ID of the failed
 // PeerConnections so you can remove them
-func (s *TrackLocalStaticSample) WriteSample(sample media.Sample) error {
-	s.rtpTrack.mu.RLock()
-	p := s.packetizer
-	clockRate := s.clockRate
-	s.rtpTrack.mu.RUnlock()
+func (s *TrackLocalStaticSample) WriteSample(sample media.Sample, onRtpPacket func(*rtp.Packet)) error {
+	s.RtpTrack.mu.RLock()
+	p := s.Packetizer
+	clockRate := s.ClockRate
+	s.RtpTrack.mu.RUnlock()
 
 	if p == nil {
 		return nil
@@ -258,8 +265,41 @@ func (s *TrackLocalStaticSample) WriteSample(sample media.Sample) error {
 
 	writeErrs := []error{}
 	for _, p := range packets {
-		if err := s.rtpTrack.WriteRTP(p); err != nil {
+		if err := s.RtpTrack.WriteRTP(p); err != nil {
 			writeErrs = append(writeErrs, err)
+		}
+		if onRtpPacket != nil {
+			onRtpPacket(p)
+		}
+	}
+
+	return util.FlattenErrs(writeErrs)
+}
+
+// WriteSample writes a Sample to the TrackLocalStaticSample
+// If one PeerConnection fails the packets will still be sent to
+// all PeerConnections. The error message will contain the ID of the failed
+// PeerConnections so you can remove them
+func (s *TrackLocalStaticSample) WriteInterleavedSample(sample media.Sample, onRtpPacket func(*rtp.Packet)) error {
+	s.RtpTrack.mu.RLock()
+	p := s.Packetizer
+	clockRate := s.ClockRate
+	s.RtpTrack.mu.RUnlock()
+
+	if p == nil {
+		return nil
+	}
+
+	samples := sample.Duration.Seconds() * clockRate
+	packets := p.(rtp.Packetizer).PacketizeInterleaved(sample.Data, uint32(samples))
+
+	writeErrs := []error{}
+	for _, p := range packets {
+		if err := s.RtpTrack.WriteRTP(p); err != nil {
+			writeErrs = append(writeErrs, err)
+		}
+		if onRtpPacket != nil {
+			onRtpPacket(p)
 		}
 	}
 

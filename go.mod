@@ -18,6 +18,9 @@ require (
 	github.com/pion/srtp/v2 v2.0.2
 	github.com/pion/transport v0.12.3
 	github.com/sclevine/agouti v3.0.0+incompatible
+	github.com/sirupsen/logrus v1.7.0
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/net v0.0.0-20210420210106-798c2154c571
 )
+
+replace github.com/pion/rtp => github.com/erivni/rtp v1.6.2-0.20210502113252-319c5a7bd534

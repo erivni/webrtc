@@ -21,5 +21,5 @@ const (
 
 	mediaSectionApplication = "application"
 
-	rtpOutboundMTU = 1200
+	rtpOutboundMTU = 1100
 )
