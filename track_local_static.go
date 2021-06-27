@@ -139,10 +139,12 @@ func (s *TrackLocalStaticRTP) writeRTP(p *rtp.Packet) error {
 		p.Header.PayloadType = uint8(b.payloadType)
 		log.WithFields(
 			log.Fields{
-				"component": "webrtc",
+				"subcomponent": "webrtc",
 				"ssrc":      p.Header.SSRC,
 				"timestamp": p.Timestamp,
-			}).Trace("outgoing. SN: ", p.SequenceNumber)
+				"sequenceNumber": p.SequenceNumber,
+				"hasExtension": p.Extension,
+			}).Trace("outgoing rtp..")
 		if _, err := b.writeStream.WriteRTP(&p.Header, p.Payload); err != nil {
 			writeErrs = append(writeErrs, err)
 		}
@@ -262,6 +264,9 @@ func (s *TrackLocalStaticSample) WriteSample(sample media.Sample, onRtpPacket fu
 
 	samples := sample.Duration.Seconds() * clockRate
 	packets := p.(rtp.Packetizer).Packetize(sample.Data, uint32(samples))
+	if len(packets) > 0 {
+		packets[0].SetExtensions(sample.Extensions)
+	}
 
 	writeErrs := []error{}
 	for _, p := range packets {
@@ -292,6 +297,9 @@ func (s *TrackLocalStaticSample) WriteInterleavedSample(sample media.Sample, onR
 
 	samples := sample.Duration.Seconds() * clockRate
 	packets := p.(rtp.Packetizer).PacketizeInterleaved(sample.Data, uint32(samples))
+	if len(packets) > 0 {
+		packets[0].SetExtensions(sample.Extensions)
+	}
 
 	writeErrs := []error{}
 	for _, p := range packets {
