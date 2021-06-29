@@ -82,6 +82,7 @@ const secondToNanoseconds = 1000000000
 // walk forwards building a sample if everything looks good clear and update buffer+values
 func (s *SampleBuilder) buildSample(firstBuffer uint16) (*media.Sample, uint32) {
 	data := []byte{}
+	var extensions []rtp.Extension = nil
 
 	for i := firstBuffer; s.buffer[i] != nil; i++ {
 		if s.buffer[i].Timestamp != s.buffer[firstBuffer].Timestamp {
@@ -104,7 +105,13 @@ func (s *SampleBuilder) buildSample(firstBuffer uint16) (*media.Sample, uint32) 
 				s.releasePacket(j)
 			}
 
-			return &media.Sample{Data: data, Duration: time.Duration((float64(samples)/float64(s.sampleRate))*secondToNanoseconds) * time.Nanosecond}, s.lastPopTimestamp
+			return &media.Sample{Data: data, Extensions: extensions, Duration: time.Duration((float64(samples)/float64(s.sampleRate))*secondToNanoseconds) * time.Nanosecond}, s.lastPopTimestamp
+		}
+
+		if extensions == nil { // do not override with nil
+			if s.buffer[i].Extension && s.buffer[i].Extensions != nil {
+				extensions = s.buffer[i].Extensions
+			}
 		}
 
 		p, err := s.depacketizer.Unmarshal(s.buffer[i].Payload)

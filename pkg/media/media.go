@@ -12,6 +12,7 @@ type Sample struct {
 	Data      []byte
 	Timestamp time.Time
 	Duration  time.Duration
+	Extensions []rtp.Extension
 }
 
 // Writer defines an interface to handle
