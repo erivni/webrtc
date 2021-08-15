@@ -12,6 +12,7 @@ type Sample struct {
 	Data      []byte
 	Timestamp time.Time
 	Duration  time.Duration
+	Dts       uint64
 	Extensions []rtp.Extension
 }
 
