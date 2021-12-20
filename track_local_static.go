@@ -3,6 +3,8 @@
 package webrtc
 
 import (
+	"encoding/binary"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -141,12 +143,15 @@ func (s *TrackLocalStaticRTP) writeRTP(p *rtp.Packet) error {
 		p.Header.PayloadType = uint8(b.payloadType)
 		log.WithFields(
 			log.Fields{
+				"notify":         "Aviya",
+				"type":           "INTENSIVE",
 				"subcomponent":   "webrtc",
 				"ssrc":           p.Header.SSRC,
 				"timestamp":      p.Timestamp,
 				"sequenceNumber": p.SequenceNumber,
 				"hasExtension":   p.Extension,
-			}).Trace("outgoing rtp..")
+				"extensions":     fmt.Sprintf("%v", p.Extensions),
+			}).Debug("outgoing rtp..")
 		if _, err := b.writeStream.WriteRTP(&p.Header, p.Payload); err != nil {
 			writeErrs = append(writeErrs, err)
 		}
@@ -277,8 +282,18 @@ func (s *TrackLocalStaticSample) WriteSample(sample media.Sample, onRtpPacket fu
 	}
 	packets := p.(rtp.Packetizer).Packetize(sample.Data, samples)
 
-	if len(packets) > 0 {
-		packets[0].SetExtensions(sample.Extensions)
+	err := addExtensions(sample, packets)
+
+	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"notify":       "Aviya",
+				"type":         "INTENSIVE",
+				"subcomponent": "webrtc",
+				"err":          err.Error(),
+				"hasExtension": packets[0].Extension,
+				"extensions":   fmt.Sprintf("%v", packets[0].Extensions),
+			}).Error("encountred an error when adding extension")
 	}
 
 	writeErrs := []error{}
@@ -310,8 +325,19 @@ func (s *TrackLocalStaticSample) WriteInterleavedSample(sample media.Sample, onR
 
 	samples := sample.Duration.Seconds() * clockRate
 	packets := p.(rtp.Packetizer).PacketizeInterleaved(sample.Data, uint32(samples))
-	if len(packets) > 0 {
-		packets[0].SetExtensions(sample.Extensions)
+
+	err := addExtensions(sample, packets)
+
+	if err != nil {
+		log.WithFields(
+			log.Fields{
+				"notify":       "Aviya",
+				"type":         "INTENSIVE",
+				"subcomponent": "webrtc",
+				"err":          err.Error(),
+				"hasExtension": packets[0].Extension,
+				"extensions":   fmt.Sprintf("%v", packets[0].Extensions),
+			}).Error("encountred an error when adding extension")
 	}
 
 	writeErrs := []error{}
@@ -327,10 +353,41 @@ func (s *TrackLocalStaticSample) WriteInterleavedSample(sample media.Sample, onR
 	return util.FlattenErrs(writeErrs)
 }
 
+func addExtensions(sample media.Sample, packets []*rtp.Packet) error {
+	var sampleAttr byte = 1
+	if sample.IsIFrame {
+		sampleAttr = sampleAttr | 0x2
+	}
+	if sample.IsSpsPps {
+		sampleAttr = sampleAttr | 0x4
+	}
+	if sample.IsAbr {
+		sampleAttr = sampleAttr | 0x8
+	}
+	/***************************************************************************************************
+		X			X			X			X			X			X			X			1
+											retransmit	is ABR		is SPS/PPS	is iframe	first packet
+	***************************************************************************************************/
+
+	extensionErrs := []error{}
+
+	if len(packets) > 0 {
+		extensionErrs = append(extensionErrs, packets[0].SetExtensions(sample.Extensions))
+		extensionErrs = append(extensionErrs, packets[0].SetExtension(5, []byte{sampleAttr}))
+		if sample.HasDon {
+			donBytes := make([]byte, 2)
+			binary.BigEndian.PutUint16(donBytes, sample.Don)
+			extensionErrs = append(extensionErrs, packets[0].SetExtension(4, donBytes))
+		}
+	}
+
+	return util.FlattenErrs(extensionErrs)
+}
+
 func getRtpOutboundMtu() uint16 {
 	rtpOutboundMTUEnv := os.Getenv("HYPERSCALE_WEBRTC_RTP_OUTBOUND_MTU")
 	if rtpOutboundMTUEnv != "" {
-		parsed, err := strconv.ParseUint(rtpOutboundMTUEnv,10,16)
+		parsed, err := strconv.ParseUint(rtpOutboundMTUEnv, 10, 16)
 		if err == nil {
 			return uint16(parsed)
 		}

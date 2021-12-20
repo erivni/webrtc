@@ -15,6 +15,11 @@ type Sample struct {
 	PacketTimestamp    uint32
 	PrevDroppedPackets uint16
 	Extensions         []rtp.Extension
+	IsIFrame           bool
+	IsSpsPps           bool
+	IsAbr              bool
+	HasDon             bool
+	Don                uint16
 }
 
 // Writer defines an interface to handle
