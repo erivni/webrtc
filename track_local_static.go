@@ -150,7 +150,7 @@ func (s *TrackLocalStaticRTP) writeRTP(p *rtp.Packet) error {
 				"sequenceNumber": p.SequenceNumber,
 				"hasExtension":   p.Extension,
 				"extensions":     fmt.Sprintf("%v", p.Extensions),
-			}).Debug("outgoing rtp..")
+			}).Trace("outgoing rtp..")
 		if _, err := b.writeStream.WriteRTP(&p.Header, p.Payload); err != nil {
 			writeErrs = append(writeErrs, err)
 		}
