@@ -7,19 +7,24 @@ import (
 	"github.com/pion/rtp"
 )
 
-// A Sample contains encoded media and timing information
-type Sample struct {
-	Data                     []byte
-	Timestamp                time.Time
-	Duration                 time.Duration
-	PacketTimestamp          uint32
-	PrevDroppedPackets       uint16
-	Extensions               []rtp.Extension
+// SampleHyperscaleExtensions contains information about the sample that is required for hyperscale
+type SampleHyperscaleExtensions struct {
 	Don                      uint16
 	IsIFrame                 bool
 	IsSpsPps                 bool
 	IsAbr                    bool
 	WithHyperscaleExtensions bool
+}
+
+// A Sample contains encoded media and timing information
+type Sample struct {
+	Data               []byte
+	Timestamp          time.Time
+	Duration           time.Duration
+	PacketTimestamp    uint32
+	PrevDroppedPackets uint16
+	Extensions         []rtp.Extension
+	SampleHyperscaleExtensions
 }
 
 // Writer defines an interface to handle
