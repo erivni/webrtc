@@ -167,6 +167,7 @@ func (s *SampleBuilder) purgeBuffers() {
 // Push does not copy the input. If you wish to reuse
 // this memory make sure to copy before calling Push
 func (s *SampleBuilder) Push(p *rtp.Packet) {
+	p.ArrivalTime = time.Now()
 	s.buffer[p.SequenceNumber] = p
 
 	switch s.filled.compare(p.SequenceNumber) {
@@ -239,14 +240,23 @@ func (s *SampleBuilder) buildSample(purgingBuffers bool) *media.Sample {
 	data := []byte{}
 	var extensions []rtp.Extension = nil
 
+	firstPacketArrivalTime := time.Now()
+	firstPacketArrivalTimeUpdated := false
+
 	for i := consume.head; i != consume.tail; i++ {
+		packet := s.buffer[i]
 		if extensions == nil { // get first rtp packet extensions if exists
-			if s.buffer[i].Extension && s.buffer[i].Extensions != nil {
-				extensions = s.buffer[i].Extensions
+			if packet.Extension && packet.Extensions != nil {
+				extensions = packet.Extensions
 			}
 		}
 
-		p, err := s.depacketizer.Unmarshal(s.buffer[i].Payload)
+		if t := packet.ArrivalTime; !t.IsZero() && t.Before(firstPacketArrivalTime) {
+			firstPacketArrivalTimeUpdated = true
+			firstPacketArrivalTime = t
+		}
+
+		p, err := s.depacketizer.Unmarshal(packet.Payload)
 		if err != nil {
 			return nil
 		}
@@ -266,6 +276,10 @@ func (s *SampleBuilder) buildSample(purgingBuffers bool) *media.Sample {
 		PacketTimestamp:    sampleTimestamp,
 		PrevDroppedPackets: s.droppedPackets,
 		Extensions:         extensions,
+	}
+
+	if firstPacketArrivalTimeUpdated {
+		sample.FirstPacketArrivalTime = firstPacketArrivalTime
 	}
 
 	//markers := fmt.Sprintf("[%d-%d] | ", s.buffer[consume.head].Timestamp, s.buffer[consume.tail-1].Timestamp)

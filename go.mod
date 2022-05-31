@@ -24,4 +24,4 @@ require (
 	golang.org/x/sys v0.0.0-20211025201205-69cdffdb9359 // indirect
 )
 
-replace github.com/pion/rtp => github.com/erivni/rtp v1.7.5-0.20220530090727-fee957ef834d
+replace github.com/pion/rtp => github.com/erivni/rtp v1.7.5-0.20220531204212-152b5a55f5a1
