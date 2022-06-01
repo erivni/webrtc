@@ -240,13 +240,14 @@ func (s *SampleBuilder) buildSample(purgingBuffers bool) *media.Sample {
 	var extensions []rtp.Extension = nil
 
 	for i := consume.head; i != consume.tail; i++ {
+		packet := s.buffer[i]
 		if extensions == nil { // get first rtp packet extensions if exists
-			if s.buffer[i].Extension && s.buffer[i].Extensions != nil {
-				extensions = s.buffer[i].Extensions
+			if packet.Extension && packet.Extensions != nil {
+				extensions = packet.Extensions
 			}
 		}
 
-		p, err := s.depacketizer.Unmarshal(s.buffer[i].Payload)
+		p, err := s.depacketizer.Unmarshal(packet.Payload)
 		if err != nil {
 			return nil
 		}
