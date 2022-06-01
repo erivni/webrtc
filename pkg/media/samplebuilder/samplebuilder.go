@@ -167,7 +167,6 @@ func (s *SampleBuilder) purgeBuffers() {
 // Push does not copy the input. If you wish to reuse
 // this memory make sure to copy before calling Push
 func (s *SampleBuilder) Push(p *rtp.Packet) {
-	p.ArrivalTime = time.Now()
 	s.buffer[p.SequenceNumber] = p
 
 	switch s.filled.compare(p.SequenceNumber) {
