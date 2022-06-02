@@ -239,14 +239,24 @@ func (s *SampleBuilder) buildSample(purgingBuffers bool) *media.Sample {
 	data := []byte{}
 	var extensions []rtp.Extension = nil
 
+	// find the time the first frame packet of the frame arrived
+	var firstPacketArrivalTime time.Time
+
 	for i := consume.head; i != consume.tail; i++ {
+		packet := s.buffer[i]
 		if extensions == nil { // get first rtp packet extensions if exists
-			if s.buffer[i].Extension && s.buffer[i].Extensions != nil {
-				extensions = s.buffer[i].Extensions
+			if packet.Extension && packet.Extensions != nil {
+				extensions = packet.Extensions
 			}
 		}
 
-		p, err := s.depacketizer.Unmarshal(s.buffer[i].Payload)
+		if !packet.ArrivalTime.IsZero() {
+			if firstPacketArrivalTime.IsZero() || packet.ArrivalTime.Before(firstPacketArrivalTime) {
+				firstPacketArrivalTime = packet.ArrivalTime
+			}
+		}
+
+		p, err := s.depacketizer.Unmarshal(packet.Payload)
 		if err != nil {
 			return nil
 		}
@@ -266,6 +276,10 @@ func (s *SampleBuilder) buildSample(purgingBuffers bool) *media.Sample {
 		PacketTimestamp:    sampleTimestamp,
 		PrevDroppedPackets: s.droppedPackets,
 		Extensions:         extensions,
+	}
+
+	if !firstPacketArrivalTime.IsZero() {
+		sample.FirstPacketArrivalTime = firstPacketArrivalTime
 	}
 
 	//markers := fmt.Sprintf("[%d-%d] | ", s.buffer[consume.head].Timestamp, s.buffer[consume.tail-1].Timestamp)

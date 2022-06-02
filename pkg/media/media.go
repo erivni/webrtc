@@ -20,12 +20,13 @@ type SampleHyperscaleExtensions struct {
 
 // A Sample contains encoded media and timing information
 type Sample struct {
-	Data               []byte
-	Timestamp          time.Time
-	Duration           time.Duration
-	PacketTimestamp    uint32
-	PrevDroppedPackets uint16
-	Extensions         []rtp.Extension
+	Data                   []byte
+	Timestamp              time.Time
+	Duration               time.Duration
+	PacketTimestamp        uint32
+	PrevDroppedPackets     uint16
+	Extensions             []rtp.Extension
+	FirstPacketArrivalTime time.Time
 	SampleHyperscaleExtensions
 }
 

@@ -50,6 +50,8 @@ func (f *fakeDepacketizer) IsPartitionTail(marker bool, payload []byte) bool {
 
 func TestSampleBuilder(t *testing.T) {
 
+	date := time.Now()
+
 	testData := []sampleBuilderTest{
 		{
 			message: "SampleBuilder shouldn't emit anything if only one RTP packet has been pushed and no marker is set",
@@ -132,15 +134,15 @@ func TestSampleBuilder(t *testing.T) {
 		{
 			message: "SampleBuilder should emit 1 packet even with low maxRate, since there's no sn jump",
 			packets: []*rtp.Packet{
-				{Header: rtp.Header{SequenceNumber: 5000, Timestamp: 5}, Payload: []byte{0x01}},
-				{Header: rtp.Header{SequenceNumber: 5001, Timestamp: 5}, Payload: []byte{0x02}},
-				{Header: rtp.Header{SequenceNumber: 5002, Timestamp: 5}, Payload: []byte{0x03}},
-				{Header: rtp.Header{SequenceNumber: 5003, Timestamp: 5}, Payload: []byte{0x04}},
-				{Header: rtp.Header{SequenceNumber: 5004, Timestamp: 5}, Payload: []byte{0x05}},
-				{Header: rtp.Header{SequenceNumber: 5005, Timestamp: 5, Marker: true}, Payload: []byte{0x06}},
+				{Header: rtp.Header{SequenceNumber: 5000, Timestamp: 5, ArrivalTime: date}, Payload: []byte{0x01}},
+				{Header: rtp.Header{SequenceNumber: 5001, Timestamp: 5, ArrivalTime: date.Add(2 * time.Microsecond)}, Payload: []byte{0x02}},
+				{Header: rtp.Header{SequenceNumber: 5002, Timestamp: 5, ArrivalTime: date.Add(-2 * time.Microsecond)}, Payload: []byte{0x03}},
+				{Header: rtp.Header{SequenceNumber: 5003, Timestamp: 5, ArrivalTime: date.Add(1 * time.Microsecond)}, Payload: []byte{0x04}},
+				{Header: rtp.Header{SequenceNumber: 5004, Timestamp: 5, ArrivalTime: date.Add(-1 * time.Microsecond)}, Payload: []byte{0x05}},
+				{Header: rtp.Header{SequenceNumber: 5005, Timestamp: 5, Marker: true, ArrivalTime: date.Add(3 * time.Microsecond)}, Payload: []byte{0x06}},
 			},
 			samples: []*media.Sample{
-				{Data: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06}, Duration: time.Second, PacketTimestamp: 5},
+				{Data: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06}, Duration: time.Second, PacketTimestamp: 5, FirstPacketArrivalTime: date.Add(-2 * time.Microsecond)},
 			},
 			maxLate:          5,
 			maxLateTimestamp: 0,
