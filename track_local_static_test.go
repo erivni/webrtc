@@ -1,3 +1,4 @@
+//go:build !js
 // +build !js
 
 package webrtc
@@ -5,11 +6,13 @@ package webrtc
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/pion/rtp"
 	"github.com/pion/transport/test"
+	"github.com/pion/webrtc/v3/pkg/media"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -222,6 +225,153 @@ func Test_TrackLocalStatic_Binding_NonBlocking(t *testing.T) {
 	assert.NoError(t, err)
 
 	closePairNow(t, pcOffer, pcAnswer)
+}
+
+func Test_TrackLocalStatic_SpreadPacketsEnabled(t *testing.T) {
+	lim := test.TimeOut(time.Second * 30)
+	defer lim.Stop()
+
+	report := test.CheckRoutines(t)
+	defer report()
+
+	mediaEngineOne := &MediaEngine{}
+	assert.NoError(t, mediaEngineOne.RegisterCodec(RTPCodecParameters{
+		RTPCodecCapability: RTPCodecCapability{MimeType: "video/VP8", ClockRate: 90000, Channels: 0, SDPFmtpLine: "", RTCPFeedback: nil},
+		PayloadType:        100,
+	}, RTPCodecTypeVideo))
+
+	mediaEngineTwo := &MediaEngine{}
+	assert.NoError(t, mediaEngineTwo.RegisterCodec(RTPCodecParameters{
+		RTPCodecCapability: RTPCodecCapability{MimeType: "video/VP8", ClockRate: 90000, Channels: 0, SDPFmtpLine: "", RTCPFeedback: nil},
+		PayloadType:        200,
+	}, RTPCodecTypeVideo))
+
+	offerer, err := NewAPI(WithMediaEngine(mediaEngineOne)).NewPeerConnection(Configuration{})
+	assert.NoError(t, err)
+
+	answerer, err := NewAPI(WithMediaEngine(mediaEngineTwo)).NewPeerConnection(Configuration{})
+	assert.NoError(t, err)
+
+	track, err := NewTrackLocalStaticSample(RTPCodecCapability{MimeType: MimeTypeVP8}, "video", "pion")
+	assert.NoError(t, err)
+
+	_, err = offerer.AddTransceiverFromKind(RTPCodecTypeVideo)
+	assert.NoError(t, err)
+
+	_, err = answerer.AddTrack(track)
+	assert.NoError(t, err)
+
+	assert.NoError(t, signalPair(offerer, answerer))
+
+	defer os.Unsetenv("HYPERSCALE_ABR_MAX_PACKET_BURST")
+	defer os.Unsetenv("HYPERSCALE_ABR_SPREAD_PACKETS_DELAY_MS")
+
+	payload := make([]byte, 64*1200) // estimated packets AT LEAST around 65 due to some rtp headers overhead (Assuming MTU-12)
+	sample := media.Sample{Data: payload, Duration: time.Second}
+	// Test ABR via WriteInterleavedSample
+	sample.IsAbr = true
+	os.Setenv("HYPERSCALE_ABR_MAX_PACKET_BURST", "10")
+	os.Setenv("HYPERSCALE_ABR_SPREAD_PACKETS_DELAY_MS", "1000")
+	timeBegin := time.Now()
+	assert.NoError(t, track.WriteInterleavedSample(sample, nil))
+	timeTook := time.Since(timeBegin)
+	// Expect sample to be written in 6s-6.1s (~64 packets, with 1s delay after each 10 packets)
+	assert.Greater(t, timeTook.Seconds(), float64(6))
+	assert.Less(t, timeTook.Seconds(), float64(6.1))
+	// Test ABR via WriteSample
+	timeBegin = time.Now()
+	assert.NoError(t, track.WriteSample(sample, nil))
+	timeTook = time.Since(timeBegin)
+	assert.Greater(t, timeTook.Seconds(), float64(6))
+	assert.Less(t, timeTook.Seconds(), float64(6.1))
+
+	// Test UI via WriteInterleavedSample
+	sample.IsAbr = false
+	os.Setenv("HYPERSCALE_UI_MAX_PACKET_BURST", "30")
+	os.Setenv("HYPERSCALE_UI_SPREAD_PACKETS_DELAY_MS", "500")
+	timeBegin = time.Now()
+	assert.NoError(t, track.WriteInterleavedSample(sample, nil))
+	timeTook = time.Since(timeBegin)
+	// Expect sample to be written in 1s-1.1s (~64 packets, with 500s delay after each 30 packets)
+	assert.Greater(t, timeTook.Seconds(), float64(1))
+	assert.Less(t, timeTook.Seconds(), float64(1.1))
+	// Test UI via WriteSample
+	timeBegin = time.Now()
+	assert.NoError(t, track.WriteSample(sample, nil))
+	timeTook = time.Since(timeBegin)
+	assert.Greater(t, timeTook.Seconds(), float64(1))
+	assert.Less(t, timeTook.Seconds(), float64(1.1))
+	closePairNow(t, offerer, answerer)
+}
+
+func Test_TrackLocalStatic_SpreadPacketsDisabled(t *testing.T) {
+	lim := test.TimeOut(time.Second * 30)
+	defer lim.Stop()
+
+	report := test.CheckRoutines(t)
+	defer report()
+
+	mediaEngineOne := &MediaEngine{}
+	assert.NoError(t, mediaEngineOne.RegisterCodec(RTPCodecParameters{
+		RTPCodecCapability: RTPCodecCapability{MimeType: "video/VP8", ClockRate: 90000, Channels: 0, SDPFmtpLine: "", RTCPFeedback: nil},
+		PayloadType:        100,
+	}, RTPCodecTypeVideo))
+
+	mediaEngineTwo := &MediaEngine{}
+	assert.NoError(t, mediaEngineTwo.RegisterCodec(RTPCodecParameters{
+		RTPCodecCapability: RTPCodecCapability{MimeType: "video/VP8", ClockRate: 90000, Channels: 0, SDPFmtpLine: "", RTCPFeedback: nil},
+		PayloadType:        200,
+	}, RTPCodecTypeVideo))
+
+	offerer, err := NewAPI(WithMediaEngine(mediaEngineOne)).NewPeerConnection(Configuration{})
+	assert.NoError(t, err)
+
+	answerer, err := NewAPI(WithMediaEngine(mediaEngineTwo)).NewPeerConnection(Configuration{})
+	assert.NoError(t, err)
+
+	track, err := NewTrackLocalStaticSample(RTPCodecCapability{MimeType: MimeTypeVP8}, "video", "pion")
+	assert.NoError(t, err)
+
+	_, err = offerer.AddTransceiverFromKind(RTPCodecTypeVideo)
+	assert.NoError(t, err)
+
+	_, err = answerer.AddTrack(track)
+	assert.NoError(t, err)
+
+	assert.NoError(t, signalPair(offerer, answerer))
+
+	payload := make([]byte, 64*1200) // estimated packets AT LEAST around 65 due to some rtp headers overhead (Assuming MTU-12)
+	sample := media.Sample{Data: payload, Duration: time.Second}
+	// Test ABR via WriteInterleavedSample
+	sample.IsAbr = true
+	os.Setenv("HYPERSCALE_ABR_MAX_PACKET_BURST", "0")
+	os.Setenv("HYPERSCALE_ABR_SPREAD_PACKETS_DELAY_MS", "0")
+	timeBegin := time.Now()
+	assert.NoError(t, track.WriteInterleavedSample(sample, nil))
+	timeTook := time.Since(timeBegin)
+	// Expect sample to be written in less than 0.s (~64 packets)
+	assert.Less(t, timeTook.Seconds(), float64(0.1))
+	// Test ABR via WriteSample
+	timeBegin = time.Now()
+	assert.NoError(t, track.WriteSample(sample, nil))
+	timeTook = time.Since(timeBegin)
+	assert.Less(t, timeTook.Seconds(), float64(0.1))
+
+	// Test UI via WriteInterleavedSample
+	sample.IsAbr = false
+	os.Setenv("HYPERSCALE_UI_MAX_PACKET_BURST", "0")
+	os.Setenv("HYPERSCALE_UI_SPREAD_PACKETS_DELAY_MS", "0")
+	timeBegin = time.Now()
+	assert.NoError(t, track.WriteInterleavedSample(sample, nil))
+	timeTook = time.Since(timeBegin)
+	// Expect sample to be written in less than 0.s (~64 packets)
+	assert.Less(t, timeTook.Seconds(), float64(0.1))
+	// Test UI via WriteSample
+	timeBegin = time.Now()
+	assert.NoError(t, track.WriteSample(sample, nil))
+	timeTook = time.Since(timeBegin)
+	assert.Less(t, timeTook.Seconds(), float64(0.1))
+	closePairNow(t, offerer, answerer)
 }
 
 func BenchmarkTrackLocalWrite(b *testing.B) {
