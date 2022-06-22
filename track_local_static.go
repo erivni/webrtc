@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3/encryption"
@@ -326,9 +327,17 @@ func (s *TrackLocalStaticSample) WriteSample(sample media.Sample, onRtpPacket fu
 	}
 
 	writeErrs := []error{}
+	maxPacketsBurst, packetsSpreadDelay := getPacketsSpreadConfig(sample)
+	packetsSentWithoutDelay := 0
 	for _, p := range packets {
+		if maxPacketsBurst > 0 && packetsSpreadDelay > 0 && packetsSentWithoutDelay >= maxPacketsBurst {
+			packetsSentWithoutDelay = 0
+			time.Sleep(time.Duration(packetsSpreadDelay) * time.Millisecond)
+		}
 		if err := s.RtpTrack.WriteRTP(p); err != nil {
 			writeErrs = append(writeErrs, err)
+		} else {
+			packetsSentWithoutDelay++
 		}
 		if onRtpPacket != nil {
 			onRtpPacket(p)
@@ -385,9 +394,17 @@ func (s *TrackLocalStaticSample) WriteInterleavedSample(sample media.Sample, onR
 	}
 
 	writeErrs := []error{}
+	maxPacketsBurst, packetsSpreadDelay := getPacketsSpreadConfig(sample)
+	packetsSentWithoutDelay := 0
 	for _, p := range packets {
+		if maxPacketsBurst > 0 && packetsSpreadDelay > 0 && packetsSentWithoutDelay >= maxPacketsBurst {
+			packetsSentWithoutDelay = 0
+			time.Sleep(time.Duration(packetsSpreadDelay) * time.Millisecond)
+		}
 		if err := s.RtpTrack.WriteRTP(p); err != nil {
 			writeErrs = append(writeErrs, err)
+		} else {
+			packetsSentWithoutDelay++
 		}
 		if onRtpPacket != nil {
 			onRtpPacket(p)
@@ -501,4 +518,17 @@ func getRtpOutboundMtu() uint16 {
 		}
 	}
 	return rtpOutboundMTU
+}
+
+func getPacketsSpreadConfig(sample media.Sample) (int, int) {
+	packetsSpreadDelay := 0
+	maxPacketsBurst := 0
+	if sample.IsAbr {
+		packetsSpreadDelay, _ = strconv.Atoi(os.Getenv("HYPERSCALE_ABR_SPREAD_PACKETS_DELAY_MS")) // 0 is returned on error, in which case feature will be ignored later on
+		maxPacketsBurst, _ = strconv.Atoi(os.Getenv("HYPERSCALE_ABR_MAX_PACKET_BURST"))           // 0 is returned on error, in which case feature will be ignored later on
+	} else {
+		packetsSpreadDelay, _ = strconv.Atoi(os.Getenv("HYPERSCALE_UI_SPREAD_PACKETS_DELAY_MS")) // 0 is returned on error, in which case feature will be ignored later on
+		maxPacketsBurst, _ = strconv.Atoi(os.Getenv("HYPERSCALE_UI_MAX_PACKET_BURST"))           // 0 is returned on error, in which case feature will be ignored later on
+	}
+	return maxPacketsBurst, packetsSpreadDelay
 }
