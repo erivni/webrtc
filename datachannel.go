@@ -1,3 +1,4 @@
+//go:build !js
 // +build !js
 
 package webrtc
@@ -290,7 +291,7 @@ func (d *DataChannel) handleOpen(dc *datachannel.DataChannel, isRemote, isAlread
 	defer d.mu.Unlock()
 
 	if !d.api.settingEngine.detach.DataChannels {
-		go d.readLoop()
+		go d.ReadLoop()
 	}
 }
 
@@ -318,7 +319,7 @@ var rlBufPool = sync.Pool{New: func() interface{} {
 	return make([]byte, dataChannelBufferSize)
 }}
 
-func (d *DataChannel) readLoop() {
+func (d *DataChannel) ReadLoop() {
 	for {
 		buffer := rlBufPool.Get().([]byte)
 		n, isString, err := d.dataChannel.ReadDataChannel(buffer)
