@@ -1,3 +1,4 @@
+//go:build !js
 // +build !js
 
 package webrtc
@@ -22,6 +23,9 @@ const (
 	// MimeTypeOpus Opus MIME type
 	// Note: Matching should be case insensitive.
 	MimeTypeOpus = "audio/opus"
+	// MimeTypeAac AAC MIME type
+	// Note: Matching should be case insensitive.
+	MimeTypeAac = "audio/aac"
 	// MimeTypeVP8 VP8 MIME type
 	// Note: Matching should be case insensitive.
 	MimeTypeVP8 = "video/VP8"
@@ -589,15 +593,16 @@ func (m *MediaEngine) getRTPParametersByPayloadType(payloadType PayloadType) (RT
 	}, nil
 }
 
-func getPacketizationModeFromFmtp(fmtp string) int{
+func getPacketizationModeFromFmtp(fmtp string) int {
 	s := strings.Split(fmtp, ";")
 
-	for _, part := range s{
+	for _, part := range s {
 		fragment := strings.Split(part, "=")
-		if fragment[0] == "packetization-mode"{
-			pm, err := strconv.Atoi(fragment[1]); if err != nil{
+		if fragment[0] == "packetization-mode" {
+			pm, err := strconv.Atoi(fragment[1])
+			if err != nil {
 				return 1
-			}else{
+			} else {
 				return pm
 			}
 		}
@@ -615,6 +620,8 @@ func payloaderForCodec(codec RTPCodecCapability) (rtp.Payloader, error) {
 		}
 	case strings.ToLower(MimeTypeOpus):
 		return &codecs.OpusPayloader{}, nil
+	case strings.ToLower(MimeTypeAac):
+		return &codecs.AacPayloader{}, nil
 	case strings.ToLower(MimeTypeVP8):
 		return &codecs.VP8Payloader{
 			EnablePictureID: true,
