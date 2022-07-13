@@ -23,9 +23,9 @@ const (
 	// MimeTypeOpus Opus MIME type
 	// Note: Matching should be case insensitive.
 	MimeTypeOpus = "audio/opus"
-	// MimeTypeAac AAC MIME type
+	// MimeTypeAac AAC MP4-LATM MIME type
 	// Note: Matching should be case insensitive.
-	MimeTypeAac = "audio/aac"
+	MimeTypeAac = "audio/mp4-latm"
 	// MimeTypeVP8 VP8 MIME type
 	// Note: Matching should be case insensitive.
 	MimeTypeVP8 = "video/VP8"
