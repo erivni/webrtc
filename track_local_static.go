@@ -463,6 +463,11 @@ func addExtensions(sample media.Sample, packets []*rtp.Packet, hyperscaleEncrypt
 				extensionErrs = append(extensionErrs, packets[0].SetExtension(id, donBytes))
 			}
 		}
+		if sample.ProtectionMeta != nil {
+			for id, value := range sample.ProtectionMeta.Marshal() {
+				extensionErrs = append(extensionErrs, packets[0].SetExtension(id, value))
+			}
+		}
 	}
 
 	// since default is to encrypt, if first packet returned 'encrypt' and result will not change for next packets
