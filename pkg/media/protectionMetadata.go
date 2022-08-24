@@ -164,27 +164,27 @@ func (subsamples *Subsamples) Unmarshal(bytes []byte) error {
 
 func (pattern *Pattern) Marshal() []byte {
 	var patternBytes byte = 0
-	patternBytes |= pattern.CryptByteBlock << 4 // 4 low bits
-	patternBytes |= pattern.SkipByteBlock       // 4 high bits
+	patternBytes |= pattern.CryptByteBlock << 4 // bits(0-3)
+	patternBytes |= pattern.SkipByteBlock       // bits(4-7)
 
 	return []byte{patternBytes}
 }
 
 func (pattern *Pattern) Unmarshal(bytes []byte) error {
 	/*
-	 *  0                   1
-	 *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
-	 * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	 * |CryptByteBlock | SkipByteBlock |
-	 * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	 *  0
+	 *  0 1 2 3 4 5 6 7
+	 * +-+-+-+-+-+-+-+-+
+	 * |CryptBB| SkipBB|
+	 * +-+-+-+-+-+-+-+-+
 	 */
 
 	if len(bytes) != 1 {
 		return errors.New("unexpected pattern bytes length")
 	}
 
-	pattern.CryptByteBlock = bytes[0] >> 4 // 4 low bits
-	pattern.SkipByteBlock = bytes[0] & 0xF // 4 high bits
+	pattern.CryptByteBlock = bytes[0] >> 4 // bits(0-3)
+	pattern.SkipByteBlock = bytes[0] & 0xF // bits(4-7)
 
 	return nil
 }
