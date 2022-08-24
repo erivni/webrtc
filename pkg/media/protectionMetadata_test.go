@@ -17,6 +17,7 @@ func TestProtectionMetadata_MarshalMeta(t *testing.T) {
 	}
 
 	bytes := meta.Marshal(nil, nil)
+	require.Equal(t, []byte{40, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, bytes)
 
 	_meta := &Meta{}
 	require.Nil(t, _meta.Unmarshal(bytes), "failed to unmarshal meta")
@@ -44,6 +45,7 @@ func TestProtectionMetadata_MarshalSubsamples(t *testing.T) {
 	}
 
 	bytes := subsamples.Marshal()
+	require.Equal(t, []byte{3, 0, 10, 0, 0, 0, 20, 0, 10, 0, 0, 0, 20, 0, 10, 0, 0, 0, 20}, bytes)
 
 	_subsamples := &Subsamples{}
 	require.Nil(t, _subsamples.Unmarshal(bytes), "failed to unmarshal subsamples")
@@ -59,6 +61,7 @@ func TestProtectionMetadata_MarshalPattern(t *testing.T) {
 	}
 
 	bytes := pattern.Marshal()
+	require.Equal(t, []byte{37}, bytes)
 
 	_pattern := &Pattern{}
 	require.Nil(t, _pattern.Unmarshal(bytes), "failed to unmarshal Pattern")
@@ -91,6 +94,7 @@ func TestProtectionMetadata_MarshalProtectionMeta_Simple(t *testing.T) {
 
 	require.Equal(t, 1, len(extensions), "extensions length should be 1")
 	require.NotNil(t, extensions[7], "extensions id should be 7")
+	require.Equal(t, []byte{40, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, extensions[7])
 
 	_meta := &Meta{}
 	require.Nil(t, _meta.Unmarshal(extensions[7]), "failed to unmarshal meta from extensions")
@@ -117,6 +121,7 @@ func TestProtectionMetadata_MarshalProtectionMeta_WithEmptySubsamples(t *testing
 
 	require.Equal(t, 1, len(extensions), "extensions length should be 1")
 	require.NotNil(t, extensions[7], "extensions id should be 7")
+	require.Equal(t, []byte{40, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, extensions[7])
 
 	_meta := &Meta{}
 	require.Nil(t, _meta.Unmarshal(extensions[7]), "failed to unmarshal meta from extensions")
@@ -158,6 +163,9 @@ func TestProtectionMetadata_MarshalProtectionMeta_WithSubsamples(t *testing.T) {
 	require.NotNil(t, extensions[7], "extensions id for meta should be 7")
 	require.NotNil(t, extensions[8], "extensions id for subsamples should be 8")
 
+	require.Equal(t, []byte{44, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, extensions[7])
+	require.Equal(t, []byte{3, 0, 10, 0, 0, 0, 20, 0, 10, 0, 0, 0, 20, 0, 10, 0, 0, 0, 20}, extensions[8])
+
 	_meta := &Meta{}
 	require.Nil(t, _meta.Unmarshal(extensions[7]), "failed to unmarshal meta from extensions")
 
@@ -189,6 +197,7 @@ func TestProtectionMetadata_MarshalProtectionMeta_WithEmptyPattern(t *testing.T)
 
 	require.Equal(t, 1, len(extensions), "extensions length should be 1")
 	require.NotNil(t, extensions[7], "extensions id for meta should be 7")
+	require.Equal(t, []byte{40, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, extensions[7])
 
 	_meta := &Meta{}
 	require.Nil(t, _meta.Unmarshal(extensions[7]), "failed to unmarshal meta from extensions")
@@ -217,6 +226,9 @@ func TestProtectionMetadata_MarshalProtectionMeta_WithPattern(t *testing.T) {
 	require.Equal(t, 2, len(extensions), "extensions length should be 2")
 	require.NotNil(t, extensions[7], "extensions id for meta should be 7")
 	require.NotNil(t, extensions[9], "extensions id for Pattern should be 9")
+
+	require.Equal(t, []byte{42, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, extensions[7])
+	require.Equal(t, []byte{37}, extensions[9])
 
 	_meta := &Meta{}
 	require.Nil(t, _meta.Unmarshal(extensions[7]), "failed to unmarshal meta from extensions")
@@ -267,6 +279,10 @@ func TestProtectionMetadata_MarshalProtectionMeta_WithSubsamplesAndPattern(t *te
 	require.NotNil(t, extensions[7], "extensions id for meta should be 7")
 	require.NotNil(t, extensions[8], "extensions id for subsamples should be 8")
 	require.NotNil(t, extensions[9], "extensions id for Pattern should be 9")
+
+	require.Equal(t, []byte{46, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, extensions[7])
+	require.Equal(t, []byte{3, 0, 10, 0, 0, 0, 20, 0, 10, 0, 0, 0, 20, 0, 10, 0, 0, 0, 20}, extensions[8])
+	require.Equal(t, []byte{37}, extensions[9])
 
 	_meta := &Meta{}
 	require.Nil(t, _meta.Unmarshal(extensions[7]), "failed to unmarshal meta from extensions")
