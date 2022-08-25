@@ -29,23 +29,23 @@ func TestProtectionMetadata_MarshalSubsamples(t *testing.T) {
 
 	subsamples := &Subsamples{
 		SubsampleCount:  3,
-		SubsamplesTotal: 90,
+		SubsamplesTotal: 210,
 		Subsamples: []Subsample{
 			{
 				ClearDataByteSize:     10,
 				ProtectedDataByteSize: 20,
 			}, {
-				ClearDataByteSize:     10,
-				ProtectedDataByteSize: 20,
+				ClearDataByteSize:     30,
+				ProtectedDataByteSize: 40,
 			}, {
-				ClearDataByteSize:     10,
-				ProtectedDataByteSize: 20,
+				ClearDataByteSize:     50,
+				ProtectedDataByteSize: 60,
 			},
 		},
 	}
 
 	bytes := subsamples.Marshal()
-	require.Equal(t, []byte{3, 0, 10, 0, 0, 0, 20, 0, 10, 0, 0, 0, 20, 0, 10, 0, 0, 0, 20}, bytes)
+	require.Equal(t, []byte{3, 0, 10, 0, 0, 0, 20, 0, 30, 0, 0, 0, 40, 0, 50, 0, 0, 0, 60}, bytes)
 
 	_subsamples := &Subsamples{}
 	require.Nil(t, _subsamples.Unmarshal(bytes), "failed to unmarshal subsamples")
@@ -141,17 +141,17 @@ func TestProtectionMetadata_MarshalProtectionMeta_WithSubsamples(t *testing.T) {
 		},
 		Subsamples: &Subsamples{
 			SubsampleCount:  3,
-			SubsamplesTotal: 90,
+			SubsamplesTotal: 210,
 			Subsamples: []Subsample{
 				{
 					ClearDataByteSize:     10,
 					ProtectedDataByteSize: 20,
 				}, {
-					ClearDataByteSize:     10,
-					ProtectedDataByteSize: 20,
+					ClearDataByteSize:     30,
+					ProtectedDataByteSize: 40,
 				}, {
-					ClearDataByteSize:     10,
-					ProtectedDataByteSize: 20,
+					ClearDataByteSize:     50,
+					ProtectedDataByteSize: 60,
 				},
 			},
 		},
@@ -159,12 +159,12 @@ func TestProtectionMetadata_MarshalProtectionMeta_WithSubsamples(t *testing.T) {
 
 	extensions := protectionMeta.Marshal()
 
-	require.Equal(t, 2, len(extensions), "extensions length should be 1")
+	require.Equal(t, 2, len(extensions), "extensions length should be 2")
 	require.NotNil(t, extensions[7], "extensions id for meta should be 7")
 	require.NotNil(t, extensions[8], "extensions id for subsamples should be 8")
 
 	require.Equal(t, []byte{44, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, extensions[7])
-	require.Equal(t, []byte{3, 0, 10, 0, 0, 0, 20, 0, 10, 0, 0, 0, 20, 0, 10, 0, 0, 0, 20}, extensions[8])
+	require.Equal(t, []byte{3, 0, 10, 0, 0, 0, 20, 0, 30, 0, 0, 0, 40, 0, 50, 0, 0, 0, 60}, extensions[8])
 
 	_meta := &Meta{}
 	require.Nil(t, _meta.Unmarshal(extensions[7]), "failed to unmarshal meta from extensions")
@@ -253,17 +253,17 @@ func TestProtectionMetadata_MarshalProtectionMeta_WithSubsamplesAndPattern(t *te
 		},
 		Subsamples: &Subsamples{
 			SubsampleCount:  3,
-			SubsamplesTotal: 90,
+			SubsamplesTotal: 210,
 			Subsamples: []Subsample{
 				{
 					ClearDataByteSize:     10,
 					ProtectedDataByteSize: 20,
 				}, {
-					ClearDataByteSize:     10,
-					ProtectedDataByteSize: 20,
+					ClearDataByteSize:     30,
+					ProtectedDataByteSize: 40,
 				}, {
-					ClearDataByteSize:     10,
-					ProtectedDataByteSize: 20,
+					ClearDataByteSize:     50,
+					ProtectedDataByteSize: 60,
 				},
 			},
 		},
@@ -275,13 +275,13 @@ func TestProtectionMetadata_MarshalProtectionMeta_WithSubsamplesAndPattern(t *te
 
 	extensions := protectionMeta.Marshal()
 
-	require.Equal(t, 3, len(extensions), "extensions length should be 1")
+	require.Equal(t, 3, len(extensions), "extensions length should be 3")
 	require.NotNil(t, extensions[7], "extensions id for meta should be 7")
 	require.NotNil(t, extensions[8], "extensions id for subsamples should be 8")
 	require.NotNil(t, extensions[9], "extensions id for Pattern should be 9")
 
 	require.Equal(t, []byte{46, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, extensions[7])
-	require.Equal(t, []byte{3, 0, 10, 0, 0, 0, 20, 0, 10, 0, 0, 0, 20, 0, 10, 0, 0, 0, 20}, extensions[8])
+	require.Equal(t, []byte{3, 0, 10, 0, 0, 0, 20, 0, 30, 0, 0, 0, 40, 0, 50, 0, 0, 0, 60}, extensions[8])
 	require.Equal(t, []byte{37}, extensions[9])
 
 	_meta := &Meta{}
