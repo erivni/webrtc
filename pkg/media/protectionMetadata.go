@@ -4,8 +4,6 @@ package media
 import (
 	"encoding/binary"
 	"errors"
-	"os"
-	"strconv"
 )
 
 type Meta struct {
@@ -187,38 +185,4 @@ func (pattern *Pattern) Unmarshal(bytes []byte) error {
 	pattern.SkipByteBlock = bytes[0] & 0xF // bits(4-7)
 
 	return nil
-}
-
-func (protectionMeta *ProtectionMeta) Marshal() map[uint8][]byte {
-	// see https://confluence01.engit.synamedia.com/pages/viewpage.action?pageId=91587691#Transcontainer/Clienteventinterface-extensionsExtensions
-	extensions := make(map[uint8][]byte)
-
-	if protectionMeta.Meta != nil {
-		id := getEnv("HYPERSCALE_RTP_EXTENSION_PROTECTION_META_ID", 7)
-		extensions[id] = protectionMeta.Meta.Marshal(protectionMeta.Subsamples, protectionMeta.Pattern)
-	}
-
-	if protectionMeta.Subsamples != nil && protectionMeta.Subsamples.SubsampleCount > 0 {
-		id := getEnv("HYPERSCALE_RTP_EXTENSION_PROTECTION_SUBSAMPLES_ID", 8)
-		extensions[id] = protectionMeta.Subsamples.Marshal()
-	}
-
-	if protectionMeta.Pattern != nil && protectionMeta.Pattern.SkipByteBlock != 0 && protectionMeta.Pattern.CryptByteBlock != 0 {
-		id := getEnv("HYPERSCALE_RTP_EXTENSION_PROTECTION_PATTERN_ID", 9)
-		extensions[id] = protectionMeta.Pattern.Marshal()
-	}
-
-	//fmt.Printf("extensions: %v \n", extensions)
-	return extensions
-}
-
-func getEnv(envVariable string, defaultVal uint8) uint8 {
-	envValue := os.Getenv(envVariable)
-	if envValue != "" {
-		parsed, err := strconv.ParseUint(envValue, 10, 8)
-		if err == nil {
-			return uint8(parsed)
-		}
-	}
-	return defaultVal
 }

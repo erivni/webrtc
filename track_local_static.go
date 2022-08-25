@@ -416,57 +416,73 @@ func (s *TrackLocalStaticSample) WriteInterleavedSample(sample media.Sample, onR
 
 func addExtensions(sample media.Sample, packets []*rtp.Packet, hyperscaleEncryption bool, encryption *encryption.Encryption, payloadDataIdx int) error {
 	var sampleAttr byte = 0
-	var encPosition uint8 = 0
-	var shouldEncryptFirstPacket, resultWillNotChangeFirstPacket bool = false, false
 
-	position, err := getExtensionVal("HYPERSCALE_RTP_EXTENSION_FIRST_PACKET_ATTR_POS")
-	if err == nil {
-		sampleAttr |= 1 << position
+	sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_FIRST_PACKET_ATTR_POS", 0)
+	if sample.IsIFrame {
+		sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_IFRAME_ATTR_POS", 1)
 	}
-	if position, err := getExtensionVal("HYPERSCALE_RTP_EXTENSION_IFRAME_ATTR_POS"); sample.IsIFrame && err == nil {
-		sampleAttr |= 1 << position
+	if sample.IsSpsPps {
+		sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_SPS_PPS_ATTR_POS", 2)
 	}
-	if position, err := getExtensionVal("HYPERSCALE_RTP_EXTENSION_SPS_PPS_ATTR_POS"); sample.IsSpsPps && err == nil {
-		sampleAttr |= 1 << position
+	if sample.IsAbr {
+		sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_ABR_ATTR_POS", 3)
 	}
-	if position, err := getExtensionVal("HYPERSCALE_RTP_EXTENSION_ABR_ATTR_POS"); sample.IsAbr && err == nil {
-		sampleAttr |= 1 << position
-	}
+
+	var shouldEncryptFirstPacket, resultWillNotChangeFirstPacket = false, false
+	encPosition := getExtensionVal("HYPERSCALE_RTP_EXTENSION_ENCRYPTION_ATTR_POS", 5)
 
 	if hyperscaleEncryption {
 		shouldEncryptFirstPacket, resultWillNotChangeFirstPacket = encryption.ShouldEncrypt(sample, 0, payloadDataIdx)
-		if encPosition, err = getExtensionVal("HYPERSCALE_RTP_EXTENSION_ENCRYPTION_ATTR_POS"); !shouldEncryptFirstPacket && err == nil {
+		if !shouldEncryptFirstPacket {
 			// set the 'skip encryption' bit
 			sampleAttr |= 1 << encPosition
 		}
 	}
 
-	extensionErrs := []error{}
-	attributesExtId := uint8(0)
+	var extensionErrs []error
+	attributesExtId := getExtensionVal("HYPERSCALE_RTP_EXTENSION_SAMPLE_ATTR_ID", 5)
 
 	if len(packets) > 0 {
-		extensionErrs = append(extensionErrs, packets[0].SetExtensions(sample.Extensions))
-		if sample.WithHyperscaleExtensions {
-			if attributesExtId, err = getExtensionVal("HYPERSCALE_RTP_EXTENSION_SAMPLE_ATTR_ID"); err == nil {
-				extensionErrs = append(extensionErrs, packets[0].SetExtension(attributesExtId, []byte{sampleAttr}))
+
+		// add protectionMetadata extensions. ids [7-9]
+		// --------------------------------------------------------
+		// !! must be added first to configure extension profile !!
+		// --------------------------------------------------------
+		if sample.ProtectionMeta != nil {
+			if sample.ProtectionMeta.Meta != nil {
+				id := getExtensionVal("HYPERSCALE_RTP_EXTENSION_PROTECTION_META_ID", 7)
+				extensionErrs = append(extensionErrs, packets[0].SetExtension(id, sample.ProtectionMeta.Meta.Marshal(sample.ProtectionMeta.Subsamples, sample.ProtectionMeta.Pattern)))
 			}
-			if isDtsExtensionEnabled() {
-				if id, err := getExtensionVal("HYPERSCALE_RTP_EXTENSION_SAMPLE_DTS_ID"); err == nil {
-					dtsBytes := make([]byte, 8)
-					binary.BigEndian.PutUint64(dtsBytes, sample.Dts)
-					extensionErrs = append(extensionErrs, packets[0].SetExtension(id, dtsBytes))
-				}
+			if sample.ProtectionMeta.Subsamples != nil && sample.ProtectionMeta.Subsamples.SubsampleCount > 0 {
+				id := getExtensionVal("HYPERSCALE_RTP_EXTENSION_PROTECTION_SUBSAMPLES_ID", 8)
+				extensionErrs = append(extensionErrs, packets[0].SetExtension(id, sample.ProtectionMeta.Subsamples.Marshal()))
 			}
-			if id, err := getExtensionVal("HYPERSCALE_RTP_EXTENSION_DON_ID"); err == nil {
-				donBytes := make([]byte, 2)
-				binary.BigEndian.PutUint16(donBytes, sample.Don)
-				extensionErrs = append(extensionErrs, packets[0].SetExtension(id, donBytes))
+			if sample.ProtectionMeta.Pattern != nil && sample.ProtectionMeta.Pattern.SkipByteBlock != 0 && sample.ProtectionMeta.Pattern.CryptByteBlock != 0 {
+				id := getExtensionVal("HYPERSCALE_RTP_EXTENSION_PROTECTION_PATTERN_ID", 9)
+				extensionErrs = append(extensionErrs, packets[0].SetExtension(id, sample.ProtectionMeta.Pattern.Marshal()))
 			}
 		}
-		if sample.ProtectionMeta != nil {
-			for id, value := range sample.ProtectionMeta.Marshal() {
-				extensionErrs = append(extensionErrs, packets[0].SetExtension(id, value))
+
+		// add sample predefined extensions. e.g: id [3]
+		extensionErrs = append(extensionErrs, packets[0].SetExtensions(sample.Extensions))
+
+		if sample.WithHyperscaleExtensions {
+			extensionErrs = append(extensionErrs, packets[0].SetExtension(attributesExtId, []byte{sampleAttr}))
+
+			// add sample dts extension. id [6]
+			if isDtsExtensionEnabled() {
+				id := getExtensionVal("HYPERSCALE_RTP_EXTENSION_SAMPLE_DTS_ID", 6)
+				dtsBytes := make([]byte, 8)
+				binary.BigEndian.PutUint64(dtsBytes, sample.Dts)
+				extensionErrs = append(extensionErrs, packets[0].SetExtension(id, dtsBytes))
 			}
+
+			// add frame_seq extension. id [4]
+			id := getExtensionVal("HYPERSCALE_RTP_EXTENSION_DON_ID", 4)
+			donBytes := make([]byte, 2)
+			binary.BigEndian.PutUint16(donBytes, sample.Don)
+			extensionErrs = append(extensionErrs, packets[0].SetExtension(id, donBytes))
+
 		}
 	}
 
@@ -497,16 +513,15 @@ func addExtensions(sample media.Sample, packets []*rtp.Packet, hyperscaleEncrypt
 	return util.FlattenErrs(extensionErrs)
 }
 
-func getExtensionVal(envVariable string) (uint8, error) {
+func getExtensionVal(envVariable string, defaultValue uint8) uint8 {
 	envValue := os.Getenv(envVariable)
 	if envValue != "" {
 		parsed, err := strconv.ParseUint(envValue, 10, 8)
 		if err == nil {
-			return uint8(parsed), nil
+			return uint8(parsed)
 		}
-		return 0, err
 	}
-	return 0, fmt.Errorf("extension value %s does not exist", envValue)
+	return defaultValue
 }
 
 func isDtsExtensionEnabled() bool {
