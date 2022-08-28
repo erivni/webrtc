@@ -11,7 +11,6 @@ type Meta struct {
 	IsProtected bool
 	Iv          [16]byte
 	Kid         [16]byte
-	Offset      uint8
 }
 
 type Subsample struct {
@@ -55,7 +54,7 @@ func (meta *Meta) Marshal(subsamples *Subsamples, pattern *Pattern) []byte {
 
 	// bit(7) reserved
 
-	metaBytes := []byte{metaByte, meta.Offset}
+	metaBytes := []byte{metaByte}
 
 	metaBytes = append(metaBytes, meta.Kid[:]...)
 	metaBytes = append(metaBytes, meta.Iv[:]...)
@@ -85,7 +84,7 @@ func (meta *Meta) Unmarshal(bytes []byte) error {
 	 * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 	 */
 
-	if len(bytes) != 34 {
+	if len(bytes) != 33 {
 		return errors.New("unexpected meta bytes length")
 	}
 	if bytes[0]&1 != byte(0) {
@@ -95,10 +94,8 @@ func (meta *Meta) Unmarshal(bytes []byte) error {
 	meta.EncScheme = uint(bytes[0] >> 4)
 	meta.IsProtected = ((bytes[0] >> 3) & 1) == byte(1)
 
-	meta.Offset = bytes[1]
-
-	copy(meta.Kid[:], bytes[2:18])
-	copy(meta.Iv[:], bytes[18:33])
+	copy(meta.Kid[:], bytes[1:17])
+	copy(meta.Iv[:], bytes[17:32])
 
 	return nil
 }

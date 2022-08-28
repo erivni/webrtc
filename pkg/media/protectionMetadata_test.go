@@ -12,13 +12,12 @@ func TestProtectionMetadata_MarshalMeta(t *testing.T) {
 	meta := &Meta{
 		EncScheme:   2,
 		IsProtected: true,
-		Offset:      2,
 		Kid:         [16]byte{42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42},
 		Iv:          [16]byte{42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42},
 	}
 
 	bytes := meta.Marshal(nil, nil)
-	require.Equal(t, []byte{40, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, bytes)
+	require.Equal(t, []byte{40, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, bytes)
 
 	_meta := &Meta{}
 	require.Nil(t, _meta.Unmarshal(bytes), "failed to unmarshal meta")
@@ -48,13 +47,12 @@ func TestProtectionMetadata_MarshalMeta_WithSubsamples(t *testing.T) {
 	meta := &Meta{
 		EncScheme:   2,
 		IsProtected: true,
-		Offset:      2,
 		Kid:         [16]byte{42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42},
 		Iv:          [16]byte{42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42},
 	}
 
 	bytes := meta.Marshal(subsamples, nil)
-	require.Equal(t, []byte{44, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, bytes)
+	require.Equal(t, []byte{44, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, bytes)
 
 	_meta := &Meta{}
 	require.Nil(t, _meta.Unmarshal(bytes), "failed to unmarshal meta")
@@ -72,13 +70,12 @@ func TestProtectionMetadata_MarshalMeta_WithPattern(t *testing.T) {
 	meta := &Meta{
 		EncScheme:   2,
 		IsProtected: true,
-		Offset:      2,
 		Kid:         [16]byte{42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42},
 		Iv:          [16]byte{42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42},
 	}
 
 	bytes := meta.Marshal(nil, pattern)
-	require.Equal(t, []byte{42, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, bytes)
+	require.Equal(t, []byte{42, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, bytes)
 
 	_meta := &Meta{}
 	require.Nil(t, _meta.Unmarshal(bytes), "failed to unmarshal meta")
@@ -113,13 +110,12 @@ func TestProtectionMetadata_MarshalMeta_WithSubsamplesAndPattern(t *testing.T) {
 	meta := &Meta{
 		EncScheme:   2,
 		IsProtected: true,
-		Offset:      2,
 		Kid:         [16]byte{42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42},
 		Iv:          [16]byte{42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42},
 	}
 
 	bytes := meta.Marshal(subsamples, pattern)
-	require.Equal(t, []byte{46, 2, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, bytes)
+	require.Equal(t, []byte{46, 42, 42, 107, 105, 100, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 42, 42, 105, 118, 69, 120, 97, 109, 112, 108, 101, 58, 41, 42, 42, 0}, bytes)
 
 	_meta := &Meta{}
 	require.Nil(t, _meta.Unmarshal(bytes), "failed to unmarshal meta")
@@ -174,7 +170,6 @@ func TestProtectionMetadata_MarshalPattern(t *testing.T) {
 func verifyMeta(t *testing.T, meta *Meta, _meta *Meta) {
 	require.Equal(t, meta.EncScheme, _meta.EncScheme, "encryption scheme should be set to 2")
 	require.True(t, _meta.IsProtected, "IsProtected should be set to true")
-	require.Equal(t, meta.Offset, _meta.Offset, "Offset should be set to 2")
 
 	require.Equal(t, meta.Kid, _meta.Kid, "unexpected Kid")
 	require.Equal(t, meta.Iv, _meta.Iv, "unexpected Iv")
