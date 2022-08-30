@@ -28,6 +28,7 @@ type Sample struct {
 	Extensions             []rtp.Extension
 	FirstPacketArrivalTime time.Time
 	SampleHyperscaleExtensions
+	ProtectionMeta *ProtectionMeta
 }
 
 // Writer defines an interface to handle
