@@ -20,6 +20,9 @@ const (
 	// MimeTypeH264 H264 MIME type.
 	// Note: Matching should be case insensitive.
 	MimeTypeH264 = "video/H264"
+	// MimeTypeH264 H265 MIME type.
+	// Note: Matching should be case insensitive.
+	MimeTypeH265 = "video/H265"
 	// MimeTypeOpus Opus MIME type
 	// Note: Matching should be case insensitive.
 	MimeTypeOpus = "audio/opus"
@@ -618,6 +621,8 @@ func payloaderForCodec(codec RTPCodecCapability) (rtp.Payloader, error) {
 		} else {
 			return &codecs.H264Payloader{}, nil
 		}
+	case strings.ToLower(MimeTypeH265):
+		return &codecs.H265Payloader{}, nil
 	case strings.ToLower(MimeTypeOpus):
 		return &codecs.OpusPayloader{}, nil
 	case strings.ToLower(MimeTypeAac):
