@@ -131,6 +131,10 @@ func (m *MediaEngine) RegisterDefaultCodecs() error {
 			PayloadType:        102,
 		},
 		{
+			RTPCodecCapability: RTPCodecCapability{MimeTypeH265, 90000, 0, "", videoRTCPFeedback},
+			PayloadType:        104,
+		},
+		{
 			RTPCodecCapability: RTPCodecCapability{"video/rtx", 90000, 0, "apt=102", nil},
 			PayloadType:        121,
 		},
@@ -613,6 +617,18 @@ func getPacketizationModeFromFmtp(fmtp string) int {
 	return 1
 }
 
+func getPayloaderType(fmtp string) string {
+	s := strings.Split(fmtp, ";")
+
+	for _, part := range s {
+		fragment := strings.Split(part, "=")
+		if fragment[0] == "payloader-type" {
+			return fragment[1]
+		}
+	}
+	return ""
+}
+
 func payloaderForCodec(codec RTPCodecCapability) (rtp.Payloader, error) {
 	switch strings.ToLower(codec.MimeType) {
 	case strings.ToLower(MimeTypeH264):
@@ -622,7 +638,11 @@ func payloaderForCodec(codec RTPCodecCapability) (rtp.Payloader, error) {
 			return &codecs.H264Payloader{}, nil
 		}
 	case strings.ToLower(MimeTypeH265):
-		return &codecs.H265Payloader{}, nil
+		if getPayloaderType(codec.SDPFmtpLine) == "safari" {
+			return &codecs.H265SafariPayloader{}, nil
+		} else {
+			return &codecs.H265Payloader{}, nil
+		}
 	case strings.ToLower(MimeTypeOpus):
 		return &codecs.OpusPayloader{}, nil
 	case strings.ToLower(MimeTypeAac):
