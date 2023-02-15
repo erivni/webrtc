@@ -1,3 +1,4 @@
+//go:build !js
 // +build !js
 
 package webrtc
@@ -5,6 +6,7 @@ package webrtc
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -292,6 +294,13 @@ func populateLocalCandidates(sessionDescription *SessionDescription, i *ICEGathe
 	candidates, err := i.GetLocalCandidates()
 	if err != nil {
 		return sessionDescription
+	}
+
+	if publicIP, ok := os.LookupEnv("ADD_PUBLIC_IP"); ok && publicIP != "" {
+		ice, _ := candidates[0].toICE()
+		publicIce, _ := newICECandidateFromICE(ice)
+		publicIce.Address = publicIP
+		candidates = append([]ICECandidate{publicIce}, candidates...)
 	}
 
 	parsed := sessionDescription.parsed
