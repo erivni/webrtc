@@ -1,6 +1,8 @@
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/erivni/ice/v2 v2.0.0-20230221081036-92e2e6da980f h1:S6ZEbIZoEjjx50U5/VkIXvsD3/4ewYfuY+IVhqkT9CY=
+github.com/erivni/ice/v2 v2.0.0-20230221081036-92e2e6da980f/go.mod h1:ovgYHUmwYLlRvcCLI67PnQ5YGe+upXZbGgllBDG/ktU=
 github.com/erivni/rtp v1.7.5-0.20221106130714-a388640de90d h1:rSmcl0YF/14Y92LtqWxS3hUPQBSapYvR8r/fURetTHc=
 github.com/erivni/rtp v1.7.5-0.20221106130714-a388640de90d/go.mod h1:bDb5n+BFZxXx0Ea7E5qe+klMuqiBrP+w8XSjiWtCUko=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
@@ -44,8 +46,6 @@ github.com/pion/datachannel v1.5.2/go.mod h1:FTGQWaHrdCwIJ1rw6xBIfZVkslikjShim5y
 github.com/pion/dtls/v2 v2.0.9/go.mod h1:O0Wr7si/Zj5/EBFlDzDd6UtVxx25CE1r7XM7BQKYQho=
 github.com/pion/dtls/v2 v2.0.10 h1:wgys7gPR1NMbWjmjJ3CW7lkUGaun8djgH8nahpNLnxI=
 github.com/pion/dtls/v2 v2.0.10/go.mod h1:00OxfeCRWHShcqT9jx8pKKmBWuTt0NCZoVPCaC4VKvU=
-github.com/pion/ice/v2 v2.1.14 h1:nD9GZs3MiR1/dPa5EiMRMe8hLBG3/qqCdx/hTS2g8VE=
-github.com/pion/ice/v2 v2.1.14/go.mod h1:ovgYHUmwYLlRvcCLI67PnQ5YGe+upXZbGgllBDG/ktU=
 github.com/pion/interceptor v0.1.2 h1:1IfrJ+AQ0HhwxNl4hqh9hMvl1hBKiNhAAr7DrUHsC6s=
 github.com/pion/interceptor v0.1.2/go.mod h1:Lh3JSl/cbJ2wP8I3ccrjh1K/deRGRn3UlSPuOTiHb6U=
 github.com/pion/logging v0.2.2 h1:M9+AIj/+pxNsDfAT64+MAVgJO0rsyLnoJKCqf//DoeY=
