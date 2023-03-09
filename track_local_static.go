@@ -33,20 +33,33 @@ type trackBinding struct {
 // TrackLocalStaticRTP  is a TrackLocal that has a pre-set codec and accepts RTP Packets.
 // If you wish to send a media.Sample use TrackLocalStaticSample
 type TrackLocalStaticRTP struct {
-	mu           sync.RWMutex
-	bindings     []trackBinding
-	codec        RTPCodecCapability
-	id, streamID string
+	mu                sync.RWMutex
+	bindings          []trackBinding
+	codec             RTPCodecCapability
+	id, rid, streamID string
 }
 
 // NewTrackLocalStaticRTP returns a TrackLocalStaticRTP.
-func NewTrackLocalStaticRTP(c RTPCodecCapability, id, streamID string) (*TrackLocalStaticRTP, error) {
-	return &TrackLocalStaticRTP{
+func NewTrackLocalStaticRTP(c RTPCodecCapability, id, streamID string, options ...func(*TrackLocalStaticRTP)) (*TrackLocalStaticRTP, error) {
+	t := &TrackLocalStaticRTP{
 		codec:    c,
 		bindings: []trackBinding{},
 		id:       id,
 		streamID: streamID,
-	}, nil
+	}
+
+	for _, option := range options {
+		option(t)
+	}
+
+	return t, nil
+}
+
+// WithRTPStreamID sets the RTP stream ID for this TrackLocalStaticRTP.
+func WithRTPStreamID(rid string) func(*TrackLocalStaticRTP) {
+	return func(t *TrackLocalStaticRTP) {
+		t.rid = rid
+	}
 }
 
 // Bind is called by the PeerConnection after negotiation is complete
@@ -95,6 +108,9 @@ func (s *TrackLocalStaticRTP) ID() string { return s.id }
 // StreamID is the group this track belongs too. This must be unique
 func (s *TrackLocalStaticRTP) StreamID() string { return s.streamID }
 
+// RID is the RTP stream identifier.
+func (s *TrackLocalStaticRTP) RID() string { return s.rid }
+
 // Kind controls if this TrackLocal is audio or video
 func (s *TrackLocalStaticRTP) Kind() RTPCodecType {
 	switch {
@@ -120,18 +136,27 @@ var rtpPacketPool = sync.Pool{
 	},
 }
 
+func resetPacketPoolAllocation(localPacket *rtp.Packet) {
+	*localPacket = rtp.Packet{}
+	rtpPacketPool.Put(localPacket)
+}
+
+func getPacketAllocationFromPool() *rtp.Packet {
+	ipacket := rtpPacketPool.Get()
+	return ipacket.(*rtp.Packet) //nolint:forcetypeassert
+}
+
 // WriteRTP writes a RTP Packet to the TrackLocalStaticRTP
 // If one PeerConnection fails the packets will still be sent to
 // all PeerConnections. The error message will contain the ID of the failed
 // PeerConnections so you can remove them
 func (s *TrackLocalStaticRTP) WriteRTP(p *rtp.Packet) error {
-	ipacket := rtpPacketPool.Get()
-	packet := ipacket.(*rtp.Packet)
-	defer func() {
-		*packet = rtp.Packet{}
-		rtpPacketPool.Put(ipacket)
-	}()
+	packet := getPacketAllocationFromPool()
+
+	defer resetPacketPoolAllocation(packet)
+
 	*packet = *p
+
 	return s.writeRTP(packet)
 }
 
@@ -168,12 +193,9 @@ func (s *TrackLocalStaticRTP) writeRTP(p *rtp.Packet) error {
 // all PeerConnections. The error message will contain the ID of the failed
 // PeerConnections so you can remove them
 func (s *TrackLocalStaticRTP) Write(b []byte) (n int, err error) {
-	ipacket := rtpPacketPool.Get()
-	packet := ipacket.(*rtp.Packet)
-	defer func() {
-		*packet = rtp.Packet{}
-		rtpPacketPool.Put(ipacket)
-	}()
+	packet := getPacketAllocationFromPool()
+
+	defer resetPacketPoolAllocation(packet)
 
 	if err = packet.Unmarshal(b); err != nil {
 		return 0, err
@@ -194,8 +216,8 @@ type TrackLocalStaticSample struct {
 }
 
 // NewTrackLocalStaticSample returns a TrackLocalStaticSample
-func NewTrackLocalStaticSample(c RTPCodecCapability, id, streamID string) (*TrackLocalStaticSample, error) {
-	rtpTrack, err := NewTrackLocalStaticRTP(c, id, streamID)
+func NewTrackLocalStaticSample(c RTPCodecCapability, id, streamID string, options ...func(*TrackLocalStaticRTP)) (*TrackLocalStaticSample, error) {
+	rtpTrack, err := NewTrackLocalStaticRTP(c, id, streamID, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -222,6 +244,9 @@ func (s *TrackLocalStaticSample) ID() string { return s.RtpTrack.ID() }
 
 // StreamID is the group this track belongs too. This must be unique
 func (s *TrackLocalStaticSample) StreamID() string { return s.RtpTrack.StreamID() }
+
+// RID is the RTP stream identifier.
+func (s *TrackLocalStaticSample) RID() string { return s.RtpTrack.RID() }
 
 // Kind controls if this TrackLocal is audio or video
 func (s *TrackLocalStaticSample) Kind() RTPCodecType { return s.RtpTrack.Kind() }
@@ -293,7 +318,7 @@ func (s *TrackLocalStaticSample) WriteSample(sample media.Sample, onRtpPacket fu
 
 	samples := uint32(sample.Duration.Seconds() * clockRate)
 	if sample.PrevDroppedPackets > 0 {
-		p.(rtp.Packetizer).SkipSamples(samples * uint32(sample.PrevDroppedPackets))
+		p.SkipSamples(samples * uint32(sample.PrevDroppedPackets))
 	}
 
 	payloadDataIdx := -1
@@ -302,7 +327,7 @@ func (s *TrackLocalStaticSample) WriteSample(sample media.Sample, onRtpPacket fu
 	if s.hyperscaleEncryption {
 		packets, payloadDataIdx = p.(rtp.Packetizer).PacketizeAndDetectData(sample.Data, uint32(samples))
 	} else {
-		packets = p.(rtp.Packetizer).Packetize(sample.Data, uint32(samples))
+		packets = p.Packetize(sample.Data, samples)
 	}
 
 	err := addExtensions(sample, packets, s.hyperscaleEncryption, s.encryption, payloadDataIdx)

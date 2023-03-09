@@ -1,3 +1,4 @@
+//go:build !js
 // +build !js
 
 package webrtc
@@ -20,8 +21,8 @@ import (
 
 	"github.com/pion/ice/v2"
 	"github.com/pion/rtp"
-	"github.com/pion/transport/test"
-	"github.com/pion/transport/vnet"
+	"github.com/pion/transport/v2/test"
+	"github.com/pion/transport/v2/vnet"
 	"github.com/pion/webrtc/v3/internal/util"
 	"github.com/pion/webrtc/v3/pkg/rtcerr"
 	"github.com/stretchr/testify/assert"
@@ -562,80 +563,52 @@ func TestOneAttrKeyConnectionSetupPerMediaDescriptionInSDP(t *testing.T) {
 	assert.NoError(t, pc.Close())
 }
 
-func TestPeerConnection_OfferingLite(t *testing.T) {
+func TestPeerConnection_IceLite(t *testing.T) {
 	report := test.CheckRoutines(t)
 	defer report()
 
 	lim := test.TimeOut(time.Second * 10)
 	defer lim.Stop()
 
-	s := SettingEngine{}
-	s.SetLite(true)
-	offerPC, err := NewAPI(WithSettingEngine(s)).NewPeerConnection(Configuration{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	answerPC, err := NewAPI().NewPeerConnection(Configuration{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err = signalPair(offerPC, answerPC); err != nil {
-		t.Fatal(err)
-	}
-
-	iceComplete := make(chan interface{})
-	answerPC.OnICEConnectionStateChange(func(iceState ICEConnectionState) {
-		if iceState == ICEConnectionStateConnected {
-			select {
-			case <-iceComplete:
-			default:
-				close(iceComplete)
-			}
+	connectTwoAgents := func(offerIsLite, answerisLite bool) {
+		offerSettingEngine := SettingEngine{}
+		offerSettingEngine.SetLite(offerIsLite)
+		offerPC, err := NewAPI(WithSettingEngine(offerSettingEngine)).NewPeerConnection(Configuration{})
+		if err != nil {
+			t.Fatal(err)
 		}
+
+		answerSettingEngine := SettingEngine{}
+		answerSettingEngine.SetLite(answerisLite)
+		answerPC, err := NewAPI(WithSettingEngine(answerSettingEngine)).NewPeerConnection(Configuration{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err = signalPair(offerPC, answerPC); err != nil {
+			t.Fatal(err)
+		}
+
+		dataChannelOpen := make(chan interface{})
+		answerPC.OnDataChannel(func(_ *DataChannel) {
+			close(dataChannelOpen)
+		})
+
+		<-dataChannelOpen
+		closePairNow(t, offerPC, answerPC)
+	}
+
+	t.Run("Offerer", func(t *testing.T) {
+		connectTwoAgents(true, false)
 	})
 
-	<-iceComplete
-	closePairNow(t, offerPC, answerPC)
-}
-
-func TestPeerConnection_AnsweringLite(t *testing.T) {
-	report := test.CheckRoutines(t)
-	defer report()
-
-	lim := test.TimeOut(time.Second * 10)
-	defer lim.Stop()
-
-	offerPC, err := NewAPI().NewPeerConnection(Configuration{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	s := SettingEngine{}
-	s.SetLite(true)
-	answerPC, err := NewAPI(WithSettingEngine(s)).NewPeerConnection(Configuration{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err = signalPair(offerPC, answerPC); err != nil {
-		t.Fatal(err)
-	}
-
-	iceComplete := make(chan interface{})
-	answerPC.OnICEConnectionStateChange(func(iceState ICEConnectionState) {
-		if iceState == ICEConnectionStateConnected {
-			select {
-			case <-iceComplete:
-			default:
-				close(iceComplete)
-			}
-		}
+	t.Run("Answerer", func(t *testing.T) {
+		connectTwoAgents(false, true)
 	})
 
-	<-iceComplete
-	closePairNow(t, offerPC, answerPC)
+	t.Run("Both", func(t *testing.T) {
+		connectTwoAgents(true, true)
+	})
 }
 
 func TestOnICEGatheringStateChange(t *testing.T) {
@@ -1274,7 +1247,7 @@ func TestPeerConnection_TransceiverDirection(t *testing.T) {
 			"offer sendonly answer sendrecv",
 			RTPTransceiverDirectionSendonly,
 			RTPTransceiverDirectionSendrecv,
-			[]RTPTransceiverDirection{RTPTransceiverDirectionSendrecv, RTPTransceiverDirectionRecvonly},
+			[]RTPTransceiverDirection{RTPTransceiverDirectionSendrecv},
 		},
 		{
 			"offer recvonly answer sendrecv",
@@ -1286,7 +1259,7 @@ func TestPeerConnection_TransceiverDirection(t *testing.T) {
 			"offer sendrecv answer sendonly",
 			RTPTransceiverDirectionSendrecv,
 			RTPTransceiverDirectionSendonly,
-			[]RTPTransceiverDirection{RTPTransceiverDirectionSendonly, RTPTransceiverDirectionRecvonly},
+			[]RTPTransceiverDirection{RTPTransceiverDirectionSendrecv},
 		},
 		{
 			"offer sendonly answer sendonly",
@@ -1553,4 +1526,97 @@ a=sendonly
 		assert.EqualValues(t, 106, codecOfTr2.PayloadType)
 		assert.NoError(t, pc.Close())
 	})
+}
+
+// Assert that remote candidates with an unknown transport are ignored and logged.
+// This allows us to accept SessionDescriptions with proprietary candidates
+// like `ssltcp`.
+func TestInvalidCandidateTransport(t *testing.T) {
+	const (
+		sslTCPCandidate = `candidate:1 1 ssltcp 1 127.0.0.1 443 typ host generation 0`
+		sslTCPOffer     = `v=0
+o=- 0 2 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=msid-semantic: WMS
+m=application 9 DTLS/SCTP 5000
+c=IN IP4 0.0.0.0
+a=ice-ufrag:1/MvHwjAyVf27aLu
+a=ice-pwd:3dBU7cFOBl120v33cynDvN1E
+a=fingerprint:sha-256 75:74:5A:A6:A4:E5:52:F4:A7:67:4C:01:C7:EE:91:3F:21:3D:A2:E3:53:7B:6F:30:86:F2:30:AA:65:FB:04:24
+a=mid:0
+a=` + sslTCPCandidate + "\n"
+	)
+
+	peerConnection, err := NewPeerConnection(Configuration{})
+	assert.NoError(t, err)
+
+	assert.NoError(t, peerConnection.SetRemoteDescription(SessionDescription{Type: SDPTypeOffer, SDP: sslTCPOffer}))
+	assert.NoError(t, peerConnection.AddICECandidate(ICECandidateInit{Candidate: sslTCPCandidate}))
+
+	assert.NoError(t, peerConnection.Close())
+}
+
+func TestOfferWithInactiveDirection(t *testing.T) {
+	const remoteSDP = `v=0
+o=- 4596489990601351948 2 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=fingerprint:sha-256 F7:BF:B4:42:5B:44:C0:B9:49:70:6D:26:D7:3E:E6:08:B1:5B:25:2E:32:88:50:B6:3C:BE:4E:18:A7:2C:85:7C
+a=group:BUNDLE 0 1
+a=msid-semantic:WMS *
+m=video 9 UDP/TLS/RTP/SAVPF 97
+c=IN IP4 0.0.0.0
+a=inactive
+a=ice-pwd:05d682b2902af03db90d9a9a5f2f8d7f
+a=ice-ufrag:93cc7e4d
+a=mid:0
+a=rtpmap:97 H264/90000
+a=setup:actpass
+a=ssrc:1455629982 cname:{61fd3093-0326-4b12-8258-86bdc1fe677a}
+`
+
+	peerConnection, err := NewPeerConnection(Configuration{})
+	assert.NoError(t, err)
+
+	assert.NoError(t, peerConnection.SetRemoteDescription(SessionDescription{Type: SDPTypeOffer, SDP: remoteSDP}))
+	assert.Equal(t, RTPTransceiverDirectionInactive, peerConnection.rtpTransceivers[0].direction.Load().(RTPTransceiverDirection)) //nolint:forcetypeassert
+
+	assert.NoError(t, peerConnection.Close())
+}
+
+func TestPeerConnectionState(t *testing.T) {
+	pc, err := NewPeerConnection(Configuration{})
+	assert.NoError(t, err)
+	assert.Equal(t, PeerConnectionStateNew, pc.ConnectionState())
+
+	pc.updateConnectionState(ICEConnectionStateChecking, DTLSTransportStateNew)
+	assert.Equal(t, PeerConnectionStateConnecting, pc.ConnectionState())
+
+	pc.updateConnectionState(ICEConnectionStateConnected, DTLSTransportStateNew)
+	assert.Equal(t, PeerConnectionStateConnecting, pc.ConnectionState())
+
+	pc.updateConnectionState(ICEConnectionStateConnected, DTLSTransportStateConnecting)
+	assert.Equal(t, PeerConnectionStateConnecting, pc.ConnectionState())
+
+	pc.updateConnectionState(ICEConnectionStateConnected, DTLSTransportStateConnected)
+	assert.Equal(t, PeerConnectionStateConnected, pc.ConnectionState())
+
+	pc.updateConnectionState(ICEConnectionStateCompleted, DTLSTransportStateConnected)
+	assert.Equal(t, PeerConnectionStateConnected, pc.ConnectionState())
+
+	pc.updateConnectionState(ICEConnectionStateConnected, DTLSTransportStateClosed)
+	assert.Equal(t, PeerConnectionStateConnected, pc.ConnectionState())
+
+	pc.updateConnectionState(ICEConnectionStateDisconnected, DTLSTransportStateConnected)
+	assert.Equal(t, PeerConnectionStateDisconnected, pc.ConnectionState())
+
+	pc.updateConnectionState(ICEConnectionStateFailed, DTLSTransportStateConnected)
+	assert.Equal(t, PeerConnectionStateFailed, pc.ConnectionState())
+
+	pc.updateConnectionState(ICEConnectionStateConnected, DTLSTransportStateFailed)
+	assert.Equal(t, PeerConnectionStateFailed, pc.ConnectionState())
+
+	assert.NoError(t, pc.Close())
+	assert.Equal(t, PeerConnectionStateClosed, pc.ConnectionState())
 }

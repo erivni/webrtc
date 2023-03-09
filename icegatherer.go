@@ -1,8 +1,10 @@
+//go:build !js
 // +build !js
 
 package webrtc
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -103,9 +105,11 @@ func (g *ICEGatherer) createAgent() error {
 		PrflxAcceptanceMinWait: g.api.settingEngine.timeout.ICEPrflxAcceptanceMinWait,
 		RelayAcceptanceMinWait: g.api.settingEngine.timeout.ICERelayAcceptanceMinWait,
 		InterfaceFilter:        g.api.settingEngine.candidates.InterfaceFilter,
+		IPFilter:               g.api.settingEngine.candidates.IPFilter,
 		NAT1To1IPs:             g.api.settingEngine.candidates.NAT1To1IPs,
 		NAT1To1IPCandidateType: nat1To1CandiTyp,
-		Net:                    g.api.settingEngine.vnet,
+		IncludeLoopback:        g.api.settingEngine.candidates.IncludeLoopbackCandidate,
+		Net:                    g.api.settingEngine.net,
 		MulticastDNSMode:       mDNSMode,
 		MulticastDNSHostName:   g.api.settingEngine.candidates.MulticastDNSHostName,
 		LocalUfrag:             g.api.settingEngine.candidates.UsernameFragment,
@@ -139,9 +143,11 @@ func (g *ICEGatherer) Gather() error {
 		return err
 	}
 
-	g.lock.Lock()
-	agent := g.agent
-	g.lock.Unlock()
+	agent := g.getAgent()
+	// it is possible agent had just been closed
+	if agent == nil {
+		return fmt.Errorf("%w: unable to gather", errICEAgentNotExist)
+	}
 
 	g.setState(ICEGathererStateGathering)
 	if err := agent.OnCandidate(func(candidate ice.Candidate) {
@@ -197,7 +203,13 @@ func (g *ICEGatherer) GetLocalParameters() (ICEParameters, error) {
 		return ICEParameters{}, err
 	}
 
-	frag, pwd, err := g.agent.GetLocalUserCredentials()
+	agent := g.getAgent()
+	// it is possible agent had just been closed
+	if agent == nil {
+		return ICEParameters{}, fmt.Errorf("%w: unable to get local parameters", errICEAgentNotExist)
+	}
+
+	frag, pwd, err := agent.GetLocalUserCredentials()
 	if err != nil {
 		return ICEParameters{}, err
 	}
@@ -214,7 +226,14 @@ func (g *ICEGatherer) GetLocalCandidates() ([]ICECandidate, error) {
 	if err := g.createAgent(); err != nil {
 		return nil, err
 	}
-	iceCandidates, err := g.agent.GetLocalCandidates()
+
+	agent := g.getAgent()
+	// it is possible agent had just been closed
+	if agent == nil {
+		return nil, fmt.Errorf("%w: unable to get local candidates", errICEAgentNotExist)
+	}
+
+	iceCandidates, err := agent.GetLocalCandidates()
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +242,7 @@ func (g *ICEGatherer) GetLocalCandidates() ([]ICECandidate, error) {
 }
 
 // OnLocalCandidate sets an event handler which fires when a new local ICE candidate is available
-// Take note that the handler is gonna be called with a nil pointer when gathering is finished.
+// Take note that the handler will be called with a nil pointer when gathering is finished.
 func (g *ICEGatherer) OnLocalCandidate(f func(*ICECandidate)) {
 	g.onLocalCandidateHandler.Store(f)
 }

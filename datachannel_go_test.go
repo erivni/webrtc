@@ -1,3 +1,4 @@
+//go:build !js
 // +build !js
 
 package webrtc
@@ -18,7 +19,7 @@ import (
 
 	"github.com/pion/datachannel"
 	"github.com/pion/logging"
-	"github.com/pion/transport/test"
+	"github.com/pion/transport/v2/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -32,11 +33,16 @@ func TestDataChannel_EventHandlers(t *testing.T) {
 	api := NewAPI()
 	dc := &DataChannel{api: api}
 
+	onDialCalled := make(chan struct{})
 	onOpenCalled := make(chan struct{})
 	onMessageCalled := make(chan struct{})
 
 	// Verify that the noop case works
 	assert.NotPanics(t, func() { dc.onOpen() })
+
+	dc.OnDial(func() {
+		close(onDialCalled)
+	})
 
 	dc.OnOpen(func() {
 		close(onOpenCalled)
@@ -47,10 +53,12 @@ func TestDataChannel_EventHandlers(t *testing.T) {
 	})
 
 	// Verify that the set handlers are called
+	assert.NotPanics(t, func() { dc.onDial() })
 	assert.NotPanics(t, func() { dc.onOpen() })
 	assert.NotPanics(t, func() { dc.onMessage(DataChannelMessage{Data: []byte("o hai")}) })
 
 	// Wait for all handlers to be called
+	<-onDialCalled
 	<-onOpenCalled
 	<-onMessageCalled
 }
@@ -355,7 +363,7 @@ func TestEOF(t *testing.T) {
 			dc.OnOpen(func() {
 				detached, err2 := dc.Detach()
 				if err2 != nil {
-					log.Debugf("Detach failed: %s\n", err2.Error())
+					log.Debugf("Detach failed: %s", err2.Error())
 					t.Error(err2)
 				}
 
@@ -376,7 +384,7 @@ func TestEOF(t *testing.T) {
 
 			log.Debug("Waiting for ping...")
 			msg, err2 := ioutil.ReadAll(dc)
-			log.Debugf("Received ping! \"%s\"\n", string(msg))
+			log.Debugf("Received ping! \"%s\"", string(msg))
 			if err2 != nil {
 				t.Error(err2)
 			}
@@ -456,7 +464,7 @@ func TestEOF(t *testing.T) {
 				return
 			}
 
-			log.Debugf("pcb: new datachannel: %s\n", dc.Label())
+			log.Debugf("pcb: new datachannel: %s", dc.Label())
 
 			dcb = dc
 			// Register channel opening handling
@@ -473,7 +481,7 @@ func TestEOF(t *testing.T) {
 			// Register the OnMessage to handle incoming messages
 			log.Debug("pcb: registering onMessage callback")
 			dcb.OnMessage(func(dcMsg DataChannelMessage) {
-				log.Debugf("pcb: received ping: %s\n", string(dcMsg.Data))
+				log.Debugf("pcb: received ping: %s", string(dcMsg.Data))
 				if !reflect.DeepEqual(dcMsg.Data, testData) {
 					t.Error("data mismatch")
 				}
@@ -504,7 +512,7 @@ func TestEOF(t *testing.T) {
 		// Register the OnMessage to handle incoming messages
 		log.Debug("pca: registering onMessage callback")
 		dca.OnMessage(func(dcMsg DataChannelMessage) {
-			log.Debugf("pca: received pong: %s\n", string(dcMsg.Data))
+			log.Debugf("pca: received pong: %s", string(dcMsg.Data))
 			if !reflect.DeepEqual(dcMsg.Data, testData) {
 				t.Error("data mismatch")
 			}
@@ -576,4 +584,75 @@ func TestDataChannel_NonStandardSessionDescription(t *testing.T) {
 
 	<-onDataChannelCalled
 	closePairNow(t, offerPC, answerPC)
+}
+
+func TestDataChannel_Dial(t *testing.T) {
+	t.Run("handler should be called once, by dialing peer only", func(t *testing.T) {
+		report := test.CheckRoutines(t)
+		defer report()
+
+		dialCalls := make(chan bool, 2)
+		wg := new(sync.WaitGroup)
+		wg.Add(2)
+
+		offerPC, answerPC, err := newPair()
+		if err != nil {
+			t.Fatalf("Failed to create a PC pair for testing")
+		}
+
+		answerPC.OnDataChannel(func(d *DataChannel) {
+			if d.Label() != expectedLabel {
+				return
+			}
+
+			d.OnDial(func() {
+				// only dialing side should fire OnDial
+				t.Fatalf("answering side should not call on dial")
+			})
+
+			d.OnOpen(wg.Done)
+		})
+
+		d, err := offerPC.CreateDataChannel(expectedLabel, nil)
+		assert.NoError(t, err)
+		d.OnDial(func() {
+			dialCalls <- true
+			wg.Done()
+		})
+
+		assert.NoError(t, signalPair(offerPC, answerPC))
+
+		wg.Wait()
+		closePairNow(t, offerPC, answerPC)
+
+		assert.Len(t, dialCalls, 1)
+	})
+
+	t.Run("handler should be called immediately if already dialed", func(t *testing.T) {
+		report := test.CheckRoutines(t)
+		defer report()
+
+		done := make(chan bool)
+
+		offerPC, answerPC, err := newPair()
+		if err != nil {
+			t.Fatalf("Failed to create a PC pair for testing")
+		}
+
+		d, err := offerPC.CreateDataChannel(expectedLabel, nil)
+		assert.NoError(t, err)
+		d.OnOpen(func() {
+			// when the offer DC has been opened, its guaranteed to have dialed since it has
+			// received a response to said dial. this test represents an unrealistic usage,
+			// but its the best way to guarantee we "missed" the dial event and still invoke
+			// the handler.
+			d.OnDial(func() {
+				done <- true
+			})
+		})
+
+		assert.NoError(t, signalPair(offerPC, answerPC))
+
+		closePair(t, offerPC, answerPC, done)
+	})
 }

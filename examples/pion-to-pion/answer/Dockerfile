@@ -1,7 +1,7 @@
-FROM golang:1.17
+FROM golang:1.20
 
 ENV GO111MODULE=on
-RUN go get -u github.com/pion/webrtc/v3/examples/pion-to-pion/answer
+RUN go install github.com/pion/webrtc/v3/examples/pion-to-pion/answer@latest
 
 CMD ["answer"]
 

@@ -1,3 +1,4 @@
+//go:build !js
 // +build !js
 
 package webrtc
@@ -48,6 +49,8 @@ type DataChannel struct {
 	onMessageHandler    func(DataChannelMessage)
 	openHandlerOnce     sync.Once
 	onOpenHandler       func()
+	dialHandlerOnce     sync.Once
+	onDialHandler       func()
 	onCloseHandler      func()
 	onBufferedAmountLow func()
 	onErrorHandler      func(error)
@@ -174,6 +177,7 @@ func (d *DataChannel) open(sctpTransport *SCTPTransport) error {
 	dc.OnBufferedAmountLow(d.onBufferedAmountLow)
 	d.mu.Unlock()
 
+	d.onDial()
 	d.handleOpen(dc, false, d.negotiated)
 	return nil
 }
@@ -224,6 +228,30 @@ func (d *DataChannel) onOpen() {
 			handler()
 			d.checkDetachAfterOpen()
 		})
+	}
+}
+
+// OnDial sets an event handler which is invoked when the
+// peer has been dialed, but before said peer has responsed
+func (d *DataChannel) OnDial(f func()) {
+	d.mu.Lock()
+	d.dialHandlerOnce = sync.Once{}
+	d.onDialHandler = f
+	d.mu.Unlock()
+
+	if d.ReadyState() == DataChannelStateOpen {
+		// If the data channel is already open, call the handler immediately.
+		go d.dialHandlerOnce.Do(f)
+	}
+}
+
+func (d *DataChannel) onDial() {
+	d.mu.RLock()
+	handler := d.onDialHandler
+	d.mu.RUnlock()
+
+	if handler != nil {
+		go d.dialHandlerOnce.Do(handler)
 	}
 }
 
@@ -320,12 +348,12 @@ var rlBufPool = sync.Pool{New: func() interface{} {
 
 func (d *DataChannel) readLoop() {
 	for {
-		buffer := rlBufPool.Get().([]byte)
+		buffer := rlBufPool.Get().([]byte) //nolint:forcetypeassert
 		n, isString, err := d.dataChannel.ReadDataChannel(buffer)
 		if err != nil {
 			rlBufPool.Put(buffer) // nolint:staticcheck
 			d.setReadyState(DataChannelStateClosed)
-			if err != io.EOF {
+			if !errors.Is(err, io.EOF) {
 				d.onError(err)
 			}
 			d.onClose()
@@ -487,8 +515,8 @@ func (d *DataChannel) ID() *uint16 {
 
 // ReadyState represents the state of the DataChannel object.
 func (d *DataChannel) ReadyState() DataChannelState {
-	if v := d.readyState.Load(); v != nil {
-		return v.(DataChannelState)
+	if v, ok := d.readyState.Load().(DataChannelState); ok {
+		return v
 	}
 	return DataChannelState(0)
 }

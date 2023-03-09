@@ -1,3 +1,4 @@
+//go:build !js
 // +build !js
 
 package webrtc
@@ -133,7 +134,7 @@ func (t *DTLSTransport) WriteRTCP(pkts []rtcp.Packet) (int, error) {
 
 	srtcpSession, err := t.getSRTCPSession()
 	if err != nil {
-		return 0, nil
+		return 0, err
 	}
 
 	writeStream, err := srtcpSession.OpenWriteStream()
@@ -141,10 +142,7 @@ func (t *DTLSTransport) WriteRTCP(pkts []rtcp.Packet) (int, error) {
 		return 0, fmt.Errorf("%w: %v", errPeerConnWriteRTCPOpenWriteStream, err)
 	}
 
-	if n, err := writeStream.Write(raw); err != nil {
-		return n, err
-	}
-	return 0, nil
+	return writeStream.Write(raw)
 }
 
 // GetLocalParameters returns the DTLS parameters of the local DTLSTransport upon construction.
@@ -231,16 +229,16 @@ func (t *DTLSTransport) startSRTP() error {
 }
 
 func (t *DTLSTransport) getSRTPSession() (*srtp.SessionSRTP, error) {
-	if value := t.srtpSession.Load(); value != nil {
-		return value.(*srtp.SessionSRTP), nil
+	if value, ok := t.srtpSession.Load().(*srtp.SessionSRTP); ok {
+		return value, nil
 	}
 
 	return nil, errDtlsTransportNotStarted
 }
 
 func (t *DTLSTransport) getSRTCPSession() (*srtp.SessionSRTCP, error) {
-	if value := t.srtcpSession.Load(); value != nil {
-		return value.(*srtp.SessionSRTCP), nil
+	if value, ok := t.srtcpSession.Load().(*srtp.SessionSRTCP); ok {
+		return value, nil
 	}
 
 	return nil, errDtlsTransportNotStarted
@@ -326,6 +324,10 @@ func (t *DTLSTransport) Start(remoteParameters DTLSParameters) error {
 		dtlsConfig.ReplayProtectionWindow = int(*t.api.settingEngine.replayProtection.DTLS)
 	}
 
+	dtlsConfig.FlightInterval = t.api.settingEngine.dtls.retransmissionInterval
+	dtlsConfig.InsecureSkipVerifyHello = t.api.settingEngine.dtls.insecureSkipHelloVerify
+	dtlsConfig.EllipticCurves = t.api.settingEngine.dtls.ellipticCurves
+
 	// Connect as DTLS Client/Server, function is blocking and we
 	// must not hold the DTLSTransport lock
 	if role == DTLSRoleClient {
@@ -402,12 +404,12 @@ func (t *DTLSTransport) Stop() error {
 	// Try closing everything and collect the errors
 	var closeErrs []error
 
-	if srtpSessionValue := t.srtpSession.Load(); srtpSessionValue != nil {
-		closeErrs = append(closeErrs, srtpSessionValue.(*srtp.SessionSRTP).Close())
+	if srtpSession, err := t.getSRTPSession(); err == nil && srtpSession != nil {
+		closeErrs = append(closeErrs, srtpSession.Close())
 	}
 
-	if srtcpSessionValue := t.srtcpSession.Load(); srtcpSessionValue != nil {
-		closeErrs = append(closeErrs, srtcpSessionValue.(*srtp.SessionSRTCP).Close())
+	if srtcpSession, err := t.getSRTCPSession(); err == nil && srtcpSession != nil {
+		closeErrs = append(closeErrs, srtcpSession.Close())
 	}
 
 	for i := range t.simulcastStreams {
@@ -445,7 +447,7 @@ func (t *DTLSTransport) validateFingerPrint(remoteCert *x509.Certificate) error 
 }
 
 func (t *DTLSTransport) ensureICEConn() error {
-	if t.iceTransport == nil || t.iceTransport.State() == ICETransportStateNew {
+	if t.iceTransport == nil {
 		return errICEConnectionNotStarted
 	}
 

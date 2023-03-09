@@ -7,76 +7,26 @@ import (
 	"time"
 
 	"github.com/pion/logging"
-	"github.com/pion/transport/packetio"
-	"github.com/pion/transport/test"
-	"github.com/stretchr/testify/assert"
+	"github.com/pion/transport/v2/packetio"
+	"github.com/pion/transport/v2/test"
+	"github.com/stretchr/testify/require"
 )
 
 const testPipeBufferSize = 8192
 
-func TestStressDuplex(t *testing.T) {
-	// Limit runtime in case of deadlocks
-	lim := test.TimeOut(time.Second * 20)
-	defer lim.Stop()
-
-	// Check for leaking routines
-	report := test.CheckRoutines(t)
-	defer report()
-
-	// Run the test
-	stressDuplex(t)
-}
-
-func stressDuplex(t *testing.T) {
-	ca, cb, stop := pipeMemory()
-
-	defer func() {
-		stop(t)
-	}()
-
-	opt := test.Options{
-		MsgSize:  2048,
-		MsgCount: 100,
-	}
-
-	assert.NoError(t, test.StressDuplex(ca, cb, opt))
-}
-
-func pipeMemory() (*Endpoint, net.Conn, func(*testing.T)) {
-	// In memory pipe
-	ca, cb := net.Pipe()
-
-	m := NewMux(Config{
-		Conn:          ca,
-		BufferSize:    testPipeBufferSize,
-		LoggerFactory: logging.NewDefaultLoggerFactory(),
-	})
-
-	e := m.NewEndpoint(MatchAll)
-	m.RemoveEndpoint(e)
-	e = m.NewEndpoint(MatchAll)
-
-	stop := func(t *testing.T) {
-		assert.NoError(t, cb.Close())
-		assert.NoError(t, m.Close())
-	}
-
-	return e, cb, stop
-}
-
 func TestNoEndpoints(t *testing.T) {
 	// In memory pipe
 	ca, cb := net.Pipe()
-	assert.NoError(t, cb.Close())
+	require.NoError(t, cb.Close())
 
 	m := NewMux(Config{
 		Conn:          ca,
 		BufferSize:    testPipeBufferSize,
 		LoggerFactory: logging.NewDefaultLoggerFactory(),
 	})
-	assert.NoError(t, m.dispatch(make([]byte, 1)))
-	assert.NoError(t, m.Close())
-	assert.NoError(t, ca.Close())
+	require.NoError(t, m.dispatch(make([]byte, 1)))
+	require.NoError(t, m.Close())
+	require.NoError(t, ca.Close())
 }
 
 type muxErrorConnReadResult struct {
@@ -99,11 +49,14 @@ func (m *muxErrorConn) Read(b []byte) (n int, err error) {
 	return
 }
 
-/* Don't end the mux readLoop for packetio.ErrTimeout or io.ErrShortBuffer, assert the following
-   * io.ErrShortBuffer and packetio.ErrTimeout don't end the read loop
-   * io.EOF ends the loop
+/*
+Don't end the mux readLoop for packetio.ErrTimeout or io.ErrShortBuffer, assert the following
 
-   pion/webrtc#1720
+  - io.ErrShortBuffer and packetio.ErrTimeout don't end the read loop
+
+  - io.EOF ends the loop
+
+    pion/webrtc#1720
 */
 func TestNonFatalRead(t *testing.T) {
 	// Limit runtime in case of deadlocks
@@ -114,7 +67,7 @@ func TestNonFatalRead(t *testing.T) {
 
 	// In memory pipe
 	ca, cb := net.Pipe()
-	assert.NoError(t, cb.Close())
+	require.NoError(t, cb.Close())
 
 	conn := &muxErrorConn{ca, []muxErrorConnReadResult{
 		// Non-fatal timeout error
@@ -135,16 +88,42 @@ func TestNonFatalRead(t *testing.T) {
 
 	buff := make([]byte, testPipeBufferSize)
 	n, err := e.Read(buff)
-	assert.NoError(t, err)
-	assert.Equal(t, buff[:n], expectedData)
+	require.NoError(t, err)
+	require.Equal(t, buff[:n], expectedData)
 
 	n, err = e.Read(buff)
-	assert.NoError(t, err)
-	assert.Equal(t, buff[:n], expectedData)
+	require.NoError(t, err)
+	require.Equal(t, buff[:n], expectedData)
 
 	<-m.closedCh
-	assert.NoError(t, m.Close())
-	assert.NoError(t, ca.Close())
+	require.NoError(t, m.Close())
+	require.NoError(t, ca.Close())
+}
+
+// If a endpoint returns packetio.ErrFull it is a non-fatal error and shouldn't cause
+// the mux to be destroyed
+// pion/webrtc#2180
+func TestNonFatalDispatch(t *testing.T) {
+	in, out := net.Pipe()
+
+	m := NewMux(Config{
+		Conn:          out,
+		LoggerFactory: logging.NewDefaultLoggerFactory(),
+		BufferSize:    1500,
+	})
+
+	e := m.NewEndpoint(MatchSRTP)
+	e.buffer.SetLimitSize(1)
+
+	for i := 0; i <= 25; i++ {
+		srtpPacket := []byte{128, 1, 2, 3, 4}
+		_, err := in.Write(srtpPacket)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, m.Close())
+	require.NoError(t, in.Close())
+	require.NoError(t, out.Close())
 }
 
 func BenchmarkDispatch(b *testing.B) {

@@ -1,3 +1,4 @@
+//go:build !js
 // +build !js
 
 package webrtc
@@ -7,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/transport/test"
+	"github.com/pion/dtls/v2/pkg/crypto/elliptic"
+	"github.com/pion/transport/v2/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -211,4 +213,47 @@ func TestSettingEngine_SetDisableMediaEngineCopy(t *testing.T) {
 
 		closePairNow(t, offerer, answerer)
 	})
+}
+
+func TestSetDTLSRetransmissionInterval(t *testing.T) {
+	s := SettingEngine{}
+
+	if s.dtls.retransmissionInterval != 0 {
+		t.Fatalf("SettingEngine defaults aren't as expected.")
+	}
+
+	s.SetDTLSRetransmissionInterval(100 * time.Millisecond)
+	if s.dtls.retransmissionInterval == 0 ||
+		s.dtls.retransmissionInterval != 100*time.Millisecond {
+		t.Errorf("Failed to set DTLS retransmission interval")
+	}
+
+	s.SetDTLSRetransmissionInterval(1 * time.Second)
+	if s.dtls.retransmissionInterval == 0 ||
+		s.dtls.retransmissionInterval != 1*time.Second {
+		t.Errorf("Failed to set DTLS retransmission interval")
+	}
+}
+
+func TestSetDTLSEllipticCurves(t *testing.T) {
+	s := SettingEngine{}
+
+	if len(s.dtls.ellipticCurves) != 0 {
+		t.Fatalf("SettingEngine defaults aren't as expected.")
+	}
+
+	s.SetDTLSEllipticCurves(elliptic.P256)
+	if len(s.dtls.ellipticCurves) == 0 ||
+		s.dtls.ellipticCurves[0] != elliptic.P256 {
+		t.Errorf("Failed to set DTLS elliptic curves")
+	}
+}
+
+func TestSetSCTPMaxReceiverBufferSize(t *testing.T) {
+	s := SettingEngine{}
+	assert.Equal(t, uint32(0), s.sctp.maxReceiveBufferSize)
+
+	expSize := uint32(4 * 1024 * 1024)
+	s.SetSCTPMaxReceiveBufferSize(expSize)
+	assert.Equal(t, expSize, s.sctp.maxReceiveBufferSize)
 }

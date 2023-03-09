@@ -1,3 +1,4 @@
+//go:build !js
 // +build !js
 
 package webrtc
@@ -98,6 +99,24 @@ func TestGenerateCertificateExpires(t *testing.T) {
 	x509Cert := CertificateFromX509(sk, &x509.Certificate{})
 	assert.NotNil(t, x509Cert)
 	assert.Contains(t, x509Cert.statsID, "certificate")
+}
+
+func TestBadCertificate(t *testing.T) {
+	var nokey interface{}
+	badcert, err := NewCertificate(nokey, x509.Certificate{})
+	assert.Nil(t, badcert)
+	assert.Error(t, err)
+
+	sk, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	assert.Nil(t, err)
+
+	badcert, err = NewCertificate(sk, x509.Certificate{})
+	assert.Nil(t, badcert)
+	assert.Error(t, err)
+
+	c0 := Certificate{}
+	c1 := Certificate{}
+	assert.False(t, c0.Equals(c1))
 }
 
 func TestPEM(t *testing.T) {
