@@ -2,6 +2,7 @@
 package samplebuilder
 
 import (
+	"fmt"
 	"math"
 	"time"
 
@@ -282,11 +283,11 @@ func (s *SampleBuilder) buildSample(purgingBuffers bool) *media.Sample {
 		sample.FirstPacketArrivalTime = firstPacketArrivalTime
 	}
 
-	//markers := fmt.Sprintf("[%d-%d] | ", s.buffer[consume.head].Timestamp, s.buffer[consume.tail-1].Timestamp)
-	//for i := consume.head; i != consume.tail; i++ {
-	//	markers += fmt.Sprintf("[%d,%d,%t],", s.buffer[i].Timestamp, s.buffer[i].SequenceNumber, s.buffer[i].Marker)
-	//}
-	//fmt.Println(markers)
+	markers := fmt.Sprintf("[%d-%d] | ", s.buffer[consume.head].Timestamp, s.buffer[consume.tail-1].Timestamp)
+	for i := consume.head; i != consume.tail; i++ {
+		markers += fmt.Sprintf("[%d,%d,%t],", s.buffer[i].Timestamp, s.buffer[i].SequenceNumber, s.buffer[i].Marker)
+	}
+	fmt.Println(markers)
 
 	s.droppedPackets = 0
 	s.lastPoppedTimestamp = sample.PacketTimestamp
