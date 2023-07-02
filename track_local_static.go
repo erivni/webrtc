@@ -417,23 +417,14 @@ func (s *TrackLocalStaticSample) WriteInterleavedSample(sample media.Sample, onR
 func addExtensions(sample media.Sample, packets []*rtp.Packet, hyperscaleEncryption bool, encryption *encryption.Encryption, payloadDataIdx int) error {
 	attributesExtId := getExtensionVal("HYPERSCALE_RTP_EXTENSION_SAMPLE_ATTR_ID", 5)
 	var sampleAttr byte
-	if sample.IsAbr {
-		sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_FIRST_PACKET_ATTR_POS", 0)
-		if sample.IsIFrame {
-			sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_IFRAME_ATTR_POS", 1)
-		}
-		if sample.IsSpsPps {
-			sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_SPS_PPS_ATTR_POS", 2)
-		}
-		sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_ABR_ATTR_POS", 3)
-	} else {
-		// in ui packets, the extension are already set
-		if len(packets) > 0 {
-			if ext := packets[0].GetExtension(attributesExtId); ext != nil {
-				sampleAttr = ext[0]
-			}
-		}
+	sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_FIRST_PACKET_ATTR_POS", 0)
+	if sample.IsIFrame {
+		sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_IFRAME_ATTR_POS", 1)
 	}
+	if sample.IsSpsPps {
+		sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_SPS_PPS_ATTR_POS", 2)
+	}
+	sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_ABR_ATTR_POS", 3)
 
 	var shouldEncryptFirstPacket, resultWillNotChangeFirstPacket = false, false
 	encPosition := getExtensionVal("HYPERSCALE_RTP_EXTENSION_ENCRYPTION_ATTR_POS", 5)
