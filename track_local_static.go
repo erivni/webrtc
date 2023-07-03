@@ -37,6 +37,9 @@ type TrackLocalStaticRTP struct {
 	bindings     []trackBinding
 	codec        RTPCodecCapability
 	id, streamID string
+
+	numberOfPackets uint64
+	sizeBytes       uint64
 }
 
 // NewTrackLocalStaticRTP returns a TrackLocalStaticRTP.
@@ -112,6 +115,10 @@ func (s *TrackLocalStaticRTP) Codec() RTPCodecCapability {
 	return s.codec
 }
 
+func (s *TrackLocalStaticRTP) GetStats() (uint64, uint64) {
+	return s.numberOfPackets, s.sizeBytes
+}
+
 // packetPool is a pool of packets used by WriteRTP and Write below
 // nolint:gochecknoglobals
 var rtpPacketPool = sync.Pool{
@@ -132,6 +139,10 @@ func (s *TrackLocalStaticRTP) WriteRTP(p *rtp.Packet) error {
 		rtpPacketPool.Put(ipacket)
 	}()
 	*packet = *p
+
+	s.numberOfPackets++
+	s.sizeBytes += 15 + uint64(packet.Length)
+
 	return s.writeRTP(packet)
 }
 
@@ -229,6 +240,10 @@ func (s *TrackLocalStaticSample) Kind() RTPCodecType { return s.RtpTrack.Kind() 
 // Codec gets the Codec of the track
 func (s *TrackLocalStaticSample) Codec() RTPCodecCapability {
 	return s.RtpTrack.Codec()
+}
+
+func (s *TrackLocalStaticSample) GetStats() (uint64, uint64) {
+	return s.RtpTrack.GetStats()
 }
 
 // Bind is called by the PeerConnection after negotiation is complete
