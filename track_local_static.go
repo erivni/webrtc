@@ -202,6 +202,7 @@ type TrackLocalStaticSample struct {
 	hyperscaleEncryption bool
 	encryption           *encryption.Encryption
 	ClockRate            float64
+	lastRtpTimestamp     *uint32
 }
 
 // NewTrackLocalStaticSample returns a TrackLocalStaticSample
@@ -246,6 +247,14 @@ func (s *TrackLocalStaticSample) GetStats() (uint64, uint64) {
 	return s.RtpTrack.GetStats()
 }
 
+func (s *TrackLocalStaticSample) GetTimestamps() (uint32, uint32) {
+	timestamp, interleavedTimestamp := s.Packetizer.GetTimestamps()
+	if s.lastRtpTimestamp != nil {
+		timestamp = *s.lastRtpTimestamp
+	}
+	return timestamp, interleavedTimestamp
+}
+
 // Bind is called by the PeerConnection after negotiation is complete
 // This asserts that the code requested is supported by the remote peer.
 // If so it setups all the state (SSRC and PayloadType) to have a call
@@ -285,6 +294,16 @@ func (s *TrackLocalStaticSample) Bind(t TrackLocalContext) (RTPCodecParameters, 
 // because a track has been stopped.
 func (s *TrackLocalStaticSample) Unbind(t TrackLocalContext) error {
 	return s.RtpTrack.Unbind(t)
+}
+
+func (s *TrackLocalStaticSample) WriteRtp(packet *rtp.Packet, onRtpPacket func(*rtp.Packet)) (err error) {
+	if err = s.RtpTrack.WriteRTP(packet); err == nil {
+		s.lastRtpTimestamp = &packet.Timestamp
+	}
+	if onRtpPacket != nil {
+		onRtpPacket(packet)
+	}
+	return err
 }
 
 // WriteSample writes a Sample to the TrackLocalStaticSample
