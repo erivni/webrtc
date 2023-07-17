@@ -29,6 +29,7 @@ type Sample struct {
 	FirstPacketArrivalTime time.Time
 	SampleHyperscaleExtensions
 	ProtectionMeta *ProtectionMeta
+	Packet         *rtp.Packet
 }
 
 // Writer defines an interface to handle
