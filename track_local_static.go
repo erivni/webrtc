@@ -37,6 +37,9 @@ type TrackLocalStaticRTP struct {
 	bindings          []trackBinding
 	codec             RTPCodecCapability
 	id, rid, streamID string
+
+	numberOfPackets uint64
+	sizeBytes       uint64
 }
 
 // NewTrackLocalStaticRTP returns a TrackLocalStaticRTP.
@@ -128,6 +131,10 @@ func (s *TrackLocalStaticRTP) Codec() RTPCodecCapability {
 	return s.codec
 }
 
+func (s *TrackLocalStaticRTP) GetStats() (uint64, uint64) {
+	return s.numberOfPackets, s.sizeBytes
+}
+
 // packetPool is a pool of packets used by WriteRTP and Write below
 // nolint:gochecknoglobals
 var rtpPacketPool = sync.Pool{
@@ -156,6 +163,9 @@ func (s *TrackLocalStaticRTP) WriteRTP(p *rtp.Packet) error {
 	defer resetPacketPoolAllocation(packet)
 
 	*packet = *p
+
+	s.numberOfPackets++
+	s.sizeBytes += 15 + uint64(packet.Length)
 
 	return s.writeRTP(packet)
 }
@@ -213,6 +223,7 @@ type TrackLocalStaticSample struct {
 	hyperscaleEncryption bool
 	encryption           *encryption.Encryption
 	ClockRate            float64
+	lastRtpTimestamp     *uint32
 }
 
 // NewTrackLocalStaticSample returns a TrackLocalStaticSample
@@ -256,6 +267,18 @@ func (s *TrackLocalStaticSample) Codec() RTPCodecCapability {
 	return s.RtpTrack.Codec()
 }
 
+func (s *TrackLocalStaticSample) GetStats() (uint64, uint64) {
+	return s.RtpTrack.GetStats()
+}
+
+func (s *TrackLocalStaticSample) GetTimestamps() (uint32, uint32) {
+	timestamp, interleavedTimestamp := s.Packetizer.GetTimestamps()
+	if s.lastRtpTimestamp != nil {
+		timestamp = *s.lastRtpTimestamp
+	}
+	return timestamp, interleavedTimestamp
+}
+
 // Bind is called by the PeerConnection after negotiation is complete
 // This asserts that the code requested is supported by the remote peer.
 // If so it setups all the state (SSRC and PayloadType) to have a call
@@ -295,6 +318,16 @@ func (s *TrackLocalStaticSample) Bind(t TrackLocalContext) (RTPCodecParameters, 
 // because a track has been stopped.
 func (s *TrackLocalStaticSample) Unbind(t TrackLocalContext) error {
 	return s.RtpTrack.Unbind(t)
+}
+
+func (s *TrackLocalStaticSample) WriteRtp(packet *rtp.Packet, onRtpPacket func(*rtp.Packet)) (err error) {
+	if err = s.RtpTrack.WriteRTP(packet); err == nil {
+		s.lastRtpTimestamp = &packet.Timestamp
+	}
+	if onRtpPacket != nil {
+		onRtpPacket(packet)
+	}
+	return err
 }
 
 // WriteSample writes a Sample to the TrackLocalStaticSample
@@ -441,7 +474,6 @@ func (s *TrackLocalStaticSample) WriteInterleavedSample(sample media.Sample, onR
 
 func addExtensions(sample media.Sample, packets []*rtp.Packet, hyperscaleEncryption bool, encryption *encryption.Encryption, payloadDataIdx int) error {
 	var sampleAttr byte = 0
-
 	sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_FIRST_PACKET_ATTR_POS", 0)
 	if sample.IsIFrame {
 		sampleAttr |= 1 << getExtensionVal("HYPERSCALE_RTP_EXTENSION_IFRAME_ATTR_POS", 1)
