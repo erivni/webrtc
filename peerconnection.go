@@ -104,6 +104,10 @@ func NewPeerConnection(configuration Configuration) (*PeerConnection, error) {
 	return api.NewPeerConnection(configuration)
 }
 
+func (api *API) NewIPeerConnection(configuration Configuration) (_ IPeerConnection, err error) {
+	return api.NewPeerConnection(configuration)
+}
+
 // NewPeerConnection creates a new PeerConnection with the provided configuration against the received API object
 func (api *API) NewPeerConnection(configuration Configuration) (*PeerConnection, error) {
 	// https://w3c.github.io/webrtc-pc/#constructor (Step #2)
