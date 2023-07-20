@@ -60,9 +60,6 @@ type DataChannel struct {
 	log logging.LeveledLogger
 }
 
-func (api *API) NewIDataChannel(transport *SCTPTransport, params *DataChannelParameters) (IDataChannel, error) {
-	return api.NewDataChannel(transport, params)
-}
 // NewDataChannel creates a new DataChannel.
 // This constructor is part of the ORTC API. It is not
 // meant to be used together with the basic WebRTC API.

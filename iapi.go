@@ -4,8 +4,7 @@ package webrtc
 
 type IAPI interface {
         NewDTLSTransport(*ICETransport, []Certificate) (*DTLSTransport, error)
-        // NewDataChannel(*SCTPTransport, *DataChannelParameters) (*DataChannel, error)
-        NewIDataChannel(*SCTPTransport, *DataChannelParameters) (IDataChannel, error)
+        NewDataChannel(*SCTPTransport, *DataChannelParameters) (*DataChannel, error)
         NewICEGatherer(ICEGatherOptions) (*ICEGatherer, error)
         NewICETransport(*ICEGatherer) *ICETransport
         NewIPeerConnection(Configuration) (IPeerConnection, error)

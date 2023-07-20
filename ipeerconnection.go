@@ -86,6 +86,7 @@ type IPeerConnection interface {
 	// and optional DataChannelInit used to configure properties of the
 	// underlying channel such as data reliability.
 	CreateDataChannel(label string, options *DataChannelInit) (*DataChannel, error)
+	CreateIDataChannel(label string, options *DataChannelInit) (IDataChannel, error)
 	// SetIdentityProvider is used to configure an identity provider to generate identity assertions
 	SetIdentityProvider(provider string) error
 	// WriteRTCP sends a user provided RTCP packet to the connected peer. If no peer is connected the

@@ -1754,6 +1754,10 @@ func (pc *PeerConnection) AddTransceiverFromTrack(track TrackLocal, init ...RTPT
 	return
 }
 
+func (pc *PeerConnection) CreateIDataChannel(label string, options *DataChannelInit) (IDataChannel, error) {
+	return pc.CreateDataChannel(label, options)
+}
+
 // CreateDataChannel creates a new DataChannel object with the given label
 // and optional DataChannelInit used to configure properties of the
 // underlying channel such as data reliability.
