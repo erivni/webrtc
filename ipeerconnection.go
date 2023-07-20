@@ -28,6 +28,7 @@ type IPeerConnection interface {
 	// OnTrack sets an event handler which is called when remote track
 	// arrives from a remote peer.
 	OnTrack(f func(*TrackRemote, *RTPReceiver))
+	OnITrack(f func(ITrack, *RTPReceiver))
 	// OnICEConnectionStateChange sets an event handler which is called
 	// when an ICE connection state is changed.
 	OnICEConnectionStateChange(f func(ICEConnectionState))

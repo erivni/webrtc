@@ -442,6 +442,12 @@ func (pc *PeerConnection) OnICEGatheringStateChange(f func(ICEGathererState)) {
 	pc.iceGatherer.OnStateChange(f)
 }
 
+func (pc *PeerConnection) OnITrack(f func(ITrack, *RTPReceiver)) {
+	pc.OnTrack(func(t *TrackRemote, r *RTPReceiver) {
+		f(t, r)
+	})
+}
+
 // OnTrack sets an event handler which is called when remote track
 // arrives from a remote peer.
 func (pc *PeerConnection) OnTrack(f func(*TrackRemote, *RTPReceiver)) {
