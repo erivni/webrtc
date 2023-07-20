@@ -141,7 +141,7 @@ func (s *TrackLocalStaticRTP) WriteRTP(p *rtp.Packet) error {
 	*packet = *p
 
 	s.numberOfPackets++
-	s.sizeBytes += 15 + uint64(packet.Length)
+	s.sizeBytes += 15 + uint64(len(packet.Payload))
 
 	return s.writeRTP(packet)
 }
