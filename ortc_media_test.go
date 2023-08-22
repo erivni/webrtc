@@ -59,7 +59,7 @@ func Test_ORTC_Media(t *testing.T) {
 			case <-seenPacket.Done():
 				return
 			default:
-				assert.NoError(t, track.WriteSample(media.Sample{Data: []byte{0xAA}, Duration: time.Second}))
+				assert.NoError(t, track.WriteSample(media.Sample{Data: []byte{0xAA}, Duration: time.Second}, nil))
 			}
 		}
 	}()

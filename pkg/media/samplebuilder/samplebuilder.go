@@ -43,6 +43,9 @@ type SampleBuilder struct {
 
 	// allows inspecting head packets of each sample and then returns a custom metadata
 	packetHeadHandler func(headPacket interface{}) interface{}
+
+	defaultSamples      uint32
+	lastPoppedTimestamp uint32
 }
 
 // New constructs a new SampleBuilder.
@@ -52,7 +55,7 @@ type SampleBuilder struct {
 // The depacketizer extracts media samples from RTP packets.
 // Several depacketizers are available in package github.com/pion/rtp/codecs.
 func New(maxLate uint16, depacketizer rtp.Depacketizer, sampleRate uint32, opts ...Option) *SampleBuilder {
-	s := &SampleBuilder{maxLate: maxLate, depacketizer: depacketizer, sampleRate: sampleRate}
+	s := &SampleBuilder{maxLate: maxLate, depacketizer: depacketizer, sampleRate: sampleRate, lastPoppedTimestamp: 0}
 	for _, o := range opts {
 		o(s)
 	}
@@ -207,15 +210,15 @@ func (s *SampleBuilder) buildSample(purgingBuffers bool) *media.Sample {
 	var consume sampleSequenceLocation
 
 	for i := s.active.head; s.buffer[i] != nil && s.active.compare(i) != slCompareAfter; i++ {
-		if s.depacketizer.IsPartitionTail(s.buffer[i].Marker, s.buffer[i].Payload) {
-			consume.head = s.active.head
-			consume.tail = i + 1
-			break
-		}
 		headTimestamp, hasData := s.fetchTimestamp(s.active)
 		if hasData && s.buffer[i].Timestamp != headTimestamp {
 			consume.head = s.active.head
 			consume.tail = i
+			break
+		}
+		if s.depacketizer.IsPartitionTail(s.buffer[i].Marker, s.buffer[i].Payload) {
+			consume.head = s.active.head
+			consume.tail = i + 1
 			break
 		}
 	}
@@ -224,23 +227,7 @@ func (s *SampleBuilder) buildSample(purgingBuffers bool) *media.Sample {
 		return nil
 	}
 
-	if !purgingBuffers && s.buffer[consume.tail] == nil {
-		// wait for the next packet after this set of packets to arrive
-		// to ensure at least one post sample timestamp is known
-		// (unless we have to release right now)
-		return nil
-	}
-
 	sampleTimestamp, _ := s.fetchTimestamp(s.active)
-	afterTimestamp := sampleTimestamp
-
-	// scan for any packet after the current and use that time stamp as the diff point
-	for i := consume.tail; i < s.active.tail; i++ {
-		if s.buffer[i] != nil {
-			afterTimestamp = s.buffer[i].Timestamp
-			break
-		}
-	}
 
 	// the head set of packets is now fully consumed
 	s.active.head = consume.tail
@@ -256,9 +243,27 @@ func (s *SampleBuilder) buildSample(purgingBuffers bool) *media.Sample {
 
 	// merge all the buffers into a sample
 	data := []byte{}
+	var extensions []rtp.Extension = nil
+
+	// find the time the first frame packet of the frame arrived
+	var firstPacketArrivalTime time.Time
+
 	var metadata interface{}
 	for i := consume.head; i != consume.tail; i++ {
-		p, err := s.depacketizer.Unmarshal(s.buffer[i].Payload)
+		packet := s.buffer[i]
+		if extensions == nil { // get first rtp packet extensions if exists
+			if packet.Extension && packet.Extensions != nil {
+				extensions = packet.Extensions
+			}
+		}
+
+		if !packet.ArrivalTime.IsZero() {
+			if firstPacketArrivalTime.IsZero() || packet.ArrivalTime.Before(firstPacketArrivalTime) {
+				firstPacketArrivalTime = packet.ArrivalTime
+			}
+		}
+
+		p, err := s.depacketizer.Unmarshal(packet.Payload)
 		if err != nil {
 			return nil
 		}
@@ -268,23 +273,49 @@ func (s *SampleBuilder) buildSample(purgingBuffers bool) *media.Sample {
 
 		data = append(data, p...)
 	}
-	samples := afterTimestamp - sampleTimestamp
+
+	// calculate duration based on previous timestamp
+	samples := sampleTimestamp - s.lastPoppedTimestamp
+	if s.lastPoppedTimestamp == 0 || s.filled.count() > s.maxLate {
+		// first popped sample
+		samples = s.defaultSamples
+	}
 
 	sample := &media.Sample{
 		Data:               data,
 		Duration:           time.Duration((float64(samples)/float64(s.sampleRate))*secondToNanoseconds) * time.Nanosecond,
 		PacketTimestamp:    sampleTimestamp,
 		PrevDroppedPackets: s.droppedPackets,
+		Extensions:         extensions,
 		Metadata:           metadata,
 	}
 
+	if !firstPacketArrivalTime.IsZero() {
+		sample.FirstPacketArrivalTime = firstPacketArrivalTime
+	}
+
+	//markers := fmt.Sprintf("[%d-%d] | ", s.buffer[consume.head].Timestamp, s.buffer[consume.tail-1].Timestamp)
+	//for i := consume.head; i != consume.tail; i++ {
+	//	markers += fmt.Sprintf("[%d,%d,%t],", s.buffer[i].Timestamp, s.buffer[i].SequenceNumber, s.buffer[i].Marker)
+	//}
+	//fmt.Println(markers)
+
 	s.droppedPackets = 0
+	s.lastPoppedTimestamp = sample.PacketTimestamp
 
 	s.preparedSamples[s.prepared.tail] = sample
 	s.prepared.tail++
 
 	s.purgeConsumedLocation(consume, true)
 	s.purgeConsumedBuffers()
+
+	// release consumed packets without waiting for next rtp push
+	for i := consume.head; i != consume.tail; i++ {
+		if s.filled.compare(i) == slCompareInside && s.filled.hasData() {
+			s.releasePacket(s.filled.head)
+			s.filled.head++
+		}
+	}
 
 	return sample
 }
@@ -364,5 +395,10 @@ func WithMaxTimeDelay(maxLateDuration time.Duration) Option {
 	return func(o *SampleBuilder) {
 		totalMillis := maxLateDuration.Milliseconds()
 		o.maxLateTimestamp = uint32(int64(o.sampleRate) * totalMillis / 1000)
+	}
+}
+func WithDefaultSamples(samples uint32) Option {
+	return func(o *SampleBuilder) {
+		o.defaultSamples = samples
 	}
 }

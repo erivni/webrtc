@@ -80,7 +80,7 @@ func Test_RTPSender_ReplaceTrack(t *testing.T) {
 			case <-seenPacketA.Done():
 				return
 			default:
-				assert.NoError(t, trackA.WriteSample(media.Sample{Data: []byte{0xAA}, Duration: time.Second}))
+				assert.NoError(t, trackA.WriteSample(media.Sample{Data: []byte{0xAA}, Duration: time.Second}, nil))
 			}
 		}
 	}()
@@ -94,7 +94,7 @@ func Test_RTPSender_ReplaceTrack(t *testing.T) {
 			case <-seenPacketB.Done():
 				return
 			default:
-				assert.NoError(t, trackB.WriteSample(media.Sample{Data: []byte{0xBB}, Duration: time.Second}))
+				assert.NoError(t, trackB.WriteSample(media.Sample{Data: []byte{0xBB}, Duration: time.Second}, nil))
 			}
 		}
 	}()
@@ -214,7 +214,7 @@ func Test_RTPSender_ReplaceTrack_InvalidTrackKindChange(t *testing.T) {
 			case <-seenPacket.Done():
 				return
 			default:
-				assert.NoError(t, trackA.WriteSample(media.Sample{Data: []byte{0xAA}, Duration: time.Second}))
+				assert.NoError(t, trackA.WriteSample(media.Sample{Data: []byte{0xAA}, Duration: time.Second}, nil))
 			}
 		}
 	}()
@@ -262,7 +262,7 @@ func Test_RTPSender_ReplaceTrack_InvalidCodecChange(t *testing.T) {
 			case <-seenPacket.Done():
 				return
 			default:
-				assert.NoError(t, trackA.WriteSample(media.Sample{Data: []byte{0xAA}, Duration: time.Second}))
+				assert.NoError(t, trackA.WriteSample(media.Sample{Data: []byte{0xAA}, Duration: time.Second}, nil))
 			}
 		}
 	}()

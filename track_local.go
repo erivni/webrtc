@@ -111,4 +111,6 @@ type TrackLocal interface {
 
 	// Kind controls if this TrackLocal is audio or video
 	Kind() RTPCodecType
+
+	GetStats() (uint64, uint64)
 }

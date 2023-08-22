@@ -185,7 +185,7 @@ func writeVideoToTrack(t *webrtc.TrackLocalStaticSample) {
 			return
 		}
 
-		if err = t.WriteSample(media.Sample{Data: frame, Duration: time.Second}); err != nil {
+		if err = t.WriteSample(media.Sample{Data: frame, Duration: time.Second}, nil); err != nil {
 			fmt.Printf("Finish writing video track: %s ", err)
 			return
 		}

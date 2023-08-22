@@ -100,7 +100,7 @@ func TestPeerConnection_Interceptor(t *testing.T) {
 			case <-seenRTP.Done():
 				return
 			case <-ticker.C:
-				assert.NoError(t, track.WriteSample(media.Sample{Data: []byte{0x00}, Duration: time.Second}))
+				assert.NoError(t, track.WriteSample(media.Sample{Data: []byte{0x00}, Duration: time.Second}, nil))
 			}
 		}
 	}()
@@ -187,7 +187,7 @@ func Test_Interceptor_BindUnbind(t *testing.T) {
 				return
 			case <-ticker.C:
 				// Send packet to make receiver track actual creates RTPReceiver.
-				assert.NoError(t, track.WriteSample(media.Sample{Data: []byte{0xAA}, Duration: time.Second}))
+				assert.NoError(t, track.WriteSample(media.Sample{Data: []byte{0xAA}, Duration: time.Second}, nil))
 			}
 		}
 	}()

@@ -10,6 +10,17 @@ import (
 	"github.com/pion/rtp"
 )
 
+// SampleHyperscaleExtensions contains information about the sample that is required for hyperscale
+type SampleHyperscaleExtensions struct {
+	Don                      uint16
+	IsIFrame                 bool
+	IsSpsPps                 bool
+	IsAbr                    bool
+	IsAudio                  bool
+	WithHyperscaleExtensions bool
+	Dts                      uint64
+}
+
 // A Sample contains encoded media and timing information
 type Sample struct {
 	Data               []byte
@@ -18,6 +29,12 @@ type Sample struct {
 	PacketTimestamp    uint32
 	PrevDroppedPackets uint16
 	Metadata           interface{}
+
+	Extensions             []rtp.Extension
+	FirstPacketArrivalTime time.Time
+	SampleHyperscaleExtensions
+	ProtectionMeta *ProtectionMeta
+	Packet         *rtp.Packet
 }
 
 // Writer defines an interface to handle

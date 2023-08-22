@@ -19,6 +19,11 @@ require (
 	github.com/pion/stun v0.6.1
 	github.com/pion/transport/v2 v2.2.1
 	github.com/sclevine/agouti v3.0.0+incompatible
+	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/net v0.13.0
 )
+
+replace github.com/pion/rtp => github.com/erivni/rtp v1.8.2-0.20230822130356-ee35daf0252b
+
+replace github.com/pion/ice/v2 => github.com/erivni/ice/v2 v2.3.11-0.20230822114519-da46aa46c89e

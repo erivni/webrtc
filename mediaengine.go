@@ -29,6 +29,9 @@ const (
 	// MimeTypeOpus Opus MIME type
 	// Note: Matching should be case insensitive.
 	MimeTypeOpus = "audio/opus"
+	// MimeTypeAac AAC MP4-LATM MIME type
+	// Note: Matching should be case insensitive.
+	MimeTypeAac = "audio/mp4-latm"
 	// MimeTypeVP8 VP8 MIME type
 	// Note: Matching should be case insensitive.
 	MimeTypeVP8 = "video/VP8"
@@ -198,6 +201,14 @@ func (m *MediaEngine) RegisterDefaultCodecs() error {
 		{
 			RTPCodecCapability: RTPCodecCapability{"video/rtx", 90000, 0, "apt=112", nil},
 			PayloadType:        113,
+		},
+		{
+			RTPCodecCapability: RTPCodecCapability{MimeTypeH264, 90000, 0, "level-asymmetry-allowed=1;packetization-mode=2;profile-level-id=42001f", videoRTCPFeedback},
+			PayloadType:        114,
+		},
+		{
+			RTPCodecCapability: RTPCodecCapability{MimeTypeH265, 90000, 0, "", videoRTCPFeedback},
+			PayloadType:        115,
 		},
 	} {
 		if err := m.RegisterCodec(codec, RTPCodecTypeVideo); err != nil {
@@ -642,12 +653,53 @@ func (m *MediaEngine) getRTPParametersByPayloadType(payloadType PayloadType) (RT
 	}, nil
 }
 
+func getPacketizationModeFromFmtp(fmtp string) int {
+	s := strings.Split(fmtp, ";")
+
+	for _, part := range s {
+		fragment := strings.Split(part, "=")
+		if fragment[0] == "packetization-mode" {
+			pm, err := strconv.Atoi(fragment[1])
+			if err != nil {
+				return 1
+			} else {
+				return pm
+			}
+		}
+	}
+	return 1
+}
+
+func getPayloaderType(fmtp string) string {
+	s := strings.Split(fmtp, ";")
+
+	for _, part := range s {
+		fragment := strings.Split(part, "=")
+		if fragment[0] == "payloader-type" {
+			return fragment[1]
+		}
+	}
+	return ""
+}
+
 func payloaderForCodec(codec RTPCodecCapability) (rtp.Payloader, error) {
 	switch strings.ToLower(codec.MimeType) {
 	case strings.ToLower(MimeTypeH264):
-		return &codecs.H264Payloader{}, nil
+		if getPacketizationModeFromFmtp(codec.SDPFmtpLine) == 2 {
+			return &codecs.H264InterleavedPayloader{}, nil
+		} else {
+			return &codecs.H264Payloader{}, nil
+		}
+	case strings.ToLower(MimeTypeH265):
+		if getPayloaderType(codec.SDPFmtpLine) == "safari" {
+			return &codecs.H265SafariPayloader{}, nil
+		} else {
+			return &codecs.H265Payloader{}, nil
+		}
 	case strings.ToLower(MimeTypeOpus):
 		return &codecs.OpusPayloader{}, nil
+	case strings.ToLower(MimeTypeAac):
+		return &codecs.AacPayloader{}, nil
 	case strings.ToLower(MimeTypeVP8):
 		return &codecs.VP8Payloader{
 			EnablePictureID: true,
