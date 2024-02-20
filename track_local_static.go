@@ -168,7 +168,7 @@ func (s *TrackLocalStaticRTP) WriteRTP(p *rtp.Packet) error {
 	*packet = *p
 
 	s.numberOfPackets++
-	s.sizeBytes += 15 + uint64(len(packet.Payload))
+	s.sizeBytes += uint64(p.MarshalSize()) + 8 // +8 for underlying UDP header size
 
 	return s.writeRTP(packet)
 }
