@@ -109,6 +109,7 @@ func (r *SCTPTransport) Start(SCTPCapabilities) error {
 	sctpAssociation, err := sctp.Client(sctp.Config{
 		NetConn:              dtlsTransport.conn,
 		MaxReceiveBufferSize: r.api.settingEngine.sctp.maxReceiveBufferSize,
+		Port:                 r.api.settingEngine.sctp.port,
 		LoggerFactory:        r.api.settingEngine.LoggerFactory,
 	})
 	if err != nil {

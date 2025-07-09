@@ -75,6 +75,7 @@ type SettingEngine struct {
 	}
 	sctp struct {
 		maxReceiveBufferSize uint32
+		port                 uint16
 	}
 	sdpMediaLevelFingerprints                 bool
 	answeringDTLSRole                         DTLSRole
@@ -440,3 +441,10 @@ func (e *SettingEngine) SetDTLSKeyLogWriter(writer io.Writer) {
 func (e *SettingEngine) SetSCTPMaxReceiveBufferSize(maxReceiveBufferSize uint32) {
 	e.sctp.maxReceiveBufferSize = maxReceiveBufferSize
 }
+
+// SetSCTPPort sets SCTP destination and source port.
+// Leave this 0 for the default port.
+func (e *SettingEngine) SetSCTPPort(port uint16) {
+	e.sctp.port = port
+}
+
