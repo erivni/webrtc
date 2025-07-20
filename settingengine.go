@@ -75,6 +75,7 @@ type SettingEngine struct {
 	}
 	sctp struct {
 		maxReceiveBufferSize uint32
+		port                 uint16
 	}
 	sdpMediaLevelFingerprints                 bool
 	answeringDTLSRole                         DTLSRole
@@ -132,6 +133,12 @@ func (e *SettingEngine) SetICETimeouts(disconnectedTimeout, failedTimeout, keepA
 	e.timeout.ICEDisconnectedTimeout = &disconnectedTimeout
 	e.timeout.ICEFailedTimeout = &failedTimeout
 	e.timeout.ICEKeepaliveInterval = &keepAliveInterval
+}
+
+// SetICEFailedTimeout sets the ICEFailedTimeout
+// Duration without network activity before an Agent is considered failed after disconnected. Default is 25 Seconds
+func (e *SettingEngine) SetICEFailedTimeout(failedTimeout time.Duration) {
+	e.timeout.ICEFailedTimeout = &failedTimeout
 }
 
 // SetHostAcceptanceMinWait sets the ICEHostAcceptanceMinWait
@@ -434,3 +441,10 @@ func (e *SettingEngine) SetDTLSKeyLogWriter(writer io.Writer) {
 func (e *SettingEngine) SetSCTPMaxReceiveBufferSize(maxReceiveBufferSize uint32) {
 	e.sctp.maxReceiveBufferSize = maxReceiveBufferSize
 }
+
+// SetSCTPPort sets SCTP destination and source port.
+// Leave this 0 for the default port.
+func (e *SettingEngine) SetSCTPPort(port uint16) {
+	e.sctp.port = port
+}
+
