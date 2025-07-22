@@ -134,6 +134,12 @@ func (e *SettingEngine) SetICETimeouts(disconnectedTimeout, failedTimeout, keepA
 	e.timeout.ICEKeepaliveInterval = &keepAliveInterval
 }
 
+// SetICEFailedTimeout sets the ICEFailedTimeout
+// Duration without network activity before an Agent is considered failed after disconnected. Default is 25 Seconds
+func (e *SettingEngine) SetICEFailedTimeout(failedTimeout time.Duration) {
+	e.timeout.ICEFailedTimeout = &failedTimeout
+}
+
 // SetHostAcceptanceMinWait sets the ICEHostAcceptanceMinWait
 func (e *SettingEngine) SetHostAcceptanceMinWait(t time.Duration) {
 	e.timeout.ICEHostAcceptanceMinWait = &t

@@ -54,6 +54,20 @@ func TestSetConnectionTimeout(t *testing.T) {
 	assert.Equal(t, *s.timeout.ICEKeepaliveInterval, 3*time.Second)
 }
 
+func TestSetICEFailedTimeout(t *testing.T) {
+	s := SettingEngine{}
+
+	var nilDuration *time.Duration
+	assert.Equal(t, s.timeout.ICEDisconnectedTimeout, nilDuration)
+	assert.Equal(t, s.timeout.ICEFailedTimeout, nilDuration)
+	assert.Equal(t, s.timeout.ICEKeepaliveInterval, nilDuration)
+
+	s.SetICEFailedTimeout(2*time.Second)
+	assert.Equal(t, *s.timeout.ICEDisconnectedTimeout, nilDuration)
+	assert.Equal(t, *s.timeout.ICEFailedTimeout, 2*time.Second)
+	assert.Equal(t, *s.timeout.ICEKeepaliveInterval, nilDuration)
+}
+
 func TestDetachDataChannels(t *testing.T) {
 	s := SettingEngine{}
 
