@@ -26,4 +26,4 @@ require (
 
 replace github.com/pion/rtp => github.com/erivni/rtp v1.8.2-0.20230822130356-ee35daf0252b
 
-replace github.com/pion/ice/v2 => github.com/erivni/ice/v2 v2.3.11-0.20250806084121-51116671ea4f
+replace github.com/pion/ice/v2 => github.com/erivni/ice/v2 v2.3.11-0.20250806130819-ed832e9ac3dc
