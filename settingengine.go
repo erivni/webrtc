@@ -55,7 +55,7 @@ type SettingEngine struct {
 		UsernameFragment         string
 		Password                 string
 		IncludeLoopbackCandidate bool
-		EnableQoS                bool
+		QoS                      *int
 	}
 	replayProtection struct {
 		DTLS  *uint
@@ -182,9 +182,9 @@ func (e *SettingEngine) SetLite(lite bool) {
 	e.candidates.ICELite = lite
 }
 
-// SetQoS configures whether or not the ice connection should set the QoS tag
-func (e *SettingEngine) SetQoS(qos bool) {
-	e.candidates.EnableQoS = qos
+// SetQoS configures the QoS tag to be added for each outgoing udp packet
+func (e *SettingEngine) SetQoS(qos int) {
+	e.candidates.QoS = &qos
 }
 
 // SetNetworkTypes configures what types of candidate networks are supported

@@ -96,7 +96,7 @@ func (g *ICEGatherer) createAgent() error {
 
 	config := &ice.AgentConfig{
 		Lite:                   g.api.settingEngine.candidates.ICELite,
-		EnableQoS:              g.api.settingEngine.candidates.EnableQoS,
+		QoS:                    g.api.settingEngine.candidates.QoS,
 		Urls:                   g.validatedServers,
 		PortMin:                g.api.settingEngine.ephemeralUDP.PortMin,
 		PortMax:                g.api.settingEngine.ephemeralUDP.PortMax,
