@@ -55,6 +55,7 @@ type SettingEngine struct {
 		UsernameFragment         string
 		Password                 string
 		IncludeLoopbackCandidate bool
+		QoS                      *int
 	}
 	replayProtection struct {
 		DTLS  *uint
@@ -179,6 +180,11 @@ func (e *SettingEngine) SetEphemeralUDPPortRange(portMin, portMax uint16) error 
 // SetLite configures whether or not the ice agent should be a lite agent
 func (e *SettingEngine) SetLite(lite bool) {
 	e.candidates.ICELite = lite
+}
+
+// SetQoS configures the QoS tag to be added for each outgoing udp packet
+func (e *SettingEngine) SetQoS(qos int) {
+	e.candidates.QoS = &qos
 }
 
 // SetNetworkTypes configures what types of candidate networks are supported

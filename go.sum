@@ -1,8 +1,8 @@
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/erivni/ice/v2 v2.3.11-0.20230822114519-da46aa46c89e h1:cvAAVzXi1SYlkGF1CD9dgWrm55NoqBfVsbs9hTDQOVE=
-github.com/erivni/ice/v2 v2.3.11-0.20230822114519-da46aa46c89e/go.mod h1:hHGCibDfmXGqukayQw979xEctASp2Pe5Oe0iDU8pRus=
+github.com/erivni/ice/v2 v2.3.11-0.20250812121125-dc68a379b8e7 h1:zIfrJizqeqGc1Vgn+vbmC9n9VtaWiudtVsztu736Srg=
+github.com/erivni/ice/v2 v2.3.11-0.20250812121125-dc68a379b8e7/go.mod h1:hHGCibDfmXGqukayQw979xEctASp2Pe5Oe0iDU8pRus=
 github.com/erivni/rtp v1.8.2-0.20230822130356-ee35daf0252b h1:MdFh7YyBjPnFeQNr13l1+k1gz1k+CwXZhD0kotvsFJQ=
 github.com/erivni/rtp v1.8.2-0.20230822130356-ee35daf0252b/go.mod h1:pBGHaFt/yW7bf1jjWAoUjpSNoDnw98KTMg+jWWvziqU=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
