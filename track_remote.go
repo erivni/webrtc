@@ -174,6 +174,27 @@ func (t *TrackRemote) ReadRTP() (*rtp.Packet, interceptor.Attributes, error) {
 	return r, attributes, nil
 }
 
+func (t *TrackRemote) ReadRTPWithPool(packetPayloadPool *sync.Pool) (*rtp.Packet, interceptor.Attributes, error) {
+	mtu := t.receiver.api.settingEngine.getReceiveMTU()
+
+	b := packetPayloadPool.Get().([]byte)
+	if uint(cap(b)) < mtu {
+		b = make([]byte, 2000) // over allocate since our buffer is sliced and getting smaller on every re-use
+	}
+
+	n, attrs, err := t.Read(b)
+	if err != nil {
+		packetPayloadPool.Put(b)
+		return nil, nil, err
+	}
+
+	p := &rtp.Packet{}
+	if err := p.Unmarshal(b[:n]); err != nil {
+		return nil, nil, err
+	}
+	return p, attrs, nil
+}
+
 // peek is like Read, but it doesn't discard the packet read
 func (t *TrackRemote) peek(b []byte) (n int, a interceptor.Attributes, err error) {
 	n, a, err = t.Read(b)
