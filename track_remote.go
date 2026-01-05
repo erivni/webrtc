@@ -33,7 +33,31 @@ type TrackRemote struct {
 	peekedAttributes interceptor.Attributes
 }
 
+var (
+	rtpBufPoolOnce sync.Once
+	rtpBufPool     *sync.Pool
+	rtpBufSize     int
+)
+
+func initSharedRTPBufPool(mtu int) {
+	rtpBufPoolOnce.Do(func() {
+		rtpBufPool = &sync.Pool{
+			New: func() interface{} {
+				return make([]byte, mtu)
+			},
+		}
+
+		// ---- warm up the pool with 500 buffers ----
+		//for i := 0; i < 500; i++ {
+		//	rtpBufPool.Put(make([]byte, mtu))
+		//}
+	})
+}
+
 func newTrackRemote(kind RTPCodecType, ssrc SSRC, rid string, receiver *RTPReceiver) *TrackRemote {
+	mtu := receiver.api.settingEngine.getReceiveMTU()
+	initSharedRTPBufPool(int(mtu)) // runs only once across all tracks
+
 	return &TrackRemote{
 		kind:     kind,
 		ssrc:     ssrc,
@@ -172,6 +196,33 @@ func (t *TrackRemote) ReadRTP() (*rtp.Packet, interceptor.Attributes, error) {
 		return nil, nil, err
 	}
 	return r, attributes, nil
+}
+
+func (t *TrackRemote) ReadRTPWithPool() (*rtp.Packet, interceptor.Attributes, error) {
+	mtu := t.receiver.api.settingEngine.getReceiveMTU()
+
+	b := rtpBufPool.Get().([]byte)
+
+	/* if cap(b) < mtu {
+		rtpBufPool.Put(b)
+		b = make([]byte, mtu)
+	} */
+	b = b[:mtu] // ALWAYS reset length
+
+	n, attrs, err := t.Read(b)
+	if err != nil {
+		rtpBufPool.Put(b)
+		return nil, nil, err
+	}
+
+	p := &rtp.Packet{}
+	if err := p.Unmarshal(b[:n]); err != nil {
+		rtpBufPool.Put(b)
+		return nil, nil, err
+	}
+
+	p.SetPooledBuffer(b, rtpBufPool)
+	return p, attrs, nil
 }
 
 // peek is like Read, but it doesn't discard the packet read
