@@ -183,16 +183,18 @@ func (s *TrackLocalStaticRTP) writeRTP(p *rtp.Packet) error {
 	for _, b := range s.bindings {
 		p.Header.SSRC = uint32(b.ssrc)
 		p.Header.PayloadType = uint8(b.payloadType)
-		log.WithFields(
-			log.Fields{
-				"type":           "INTENSIVE",
-				"subcomponent":   "webrtc",
-				"ssrc":           p.Header.SSRC,
-				"timestamp":      p.Timestamp,
-				"sequenceNumber": p.SequenceNumber,
-				"hasExtension":   p.Extension,
-				"extensions":     fmt.Sprintf("%v", p.Extensions),
-			}).Trace("outgoing rtp..")
+		if log.IsLevelEnabled(log.TraceLevel) {
+			log.WithFields(
+				log.Fields{
+					"type":           "INTENSIVE",
+					"subcomponent":   "webrtc",
+					"ssrc":           p.Header.SSRC,
+					"timestamp":      p.Timestamp,
+					"sequenceNumber": p.SequenceNumber,
+					"hasExtension":   p.Extension,
+					"extensions":     fmt.Sprintf("%v", p.Extensions),
+				}).Trace("outgoing rtp..")
+		}
 		if _, err := b.writeStream.WriteRTP(&p.Header, p.Payload); err != nil {
 			writeErrs = append(writeErrs, err)
 		}
