@@ -1156,13 +1156,11 @@ func (pc *PeerConnection) SetRemoteDescription(desc SessionDescription) error { 
 	}
 
 	for i := range candidates {
-        if candidates[i].Typ != ICECandidateTypeHost {
-            pc.log.Warnf("removing non-host type ice candidate %s from list", candidates[i].String())
-            continue
-        }
-		if err = pc.iceTransport.AddRemoteCandidate(&candidates[i]); err != nil {
-			return err
-		}
+        pc.log.Warnf("ignoring candidate %s from sdp", candidates[i].String())
+        continue
+// 		if err = pc.iceTransport.AddRemoteCandidate(&candidates[i]); err != nil {
+// 			return err
+// 		}
 	}
 
 	currentTransceivers := append([]*RTPTransceiver{}, pc.GetTransceivers()...)
