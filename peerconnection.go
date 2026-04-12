@@ -1156,6 +1156,10 @@ func (pc *PeerConnection) SetRemoteDescription(desc SessionDescription) error { 
 	}
 
 	for i := range candidates {
+        if candidates[i].Typ != ICECandidateTypeHost {
+            pc.log.Warnf("removing non-host type ice candidate %s from list", candidates[i].String())
+            continue
+        }
 		if err = pc.iceTransport.AddRemoteCandidate(&candidates[i]); err != nil {
 			return err
 		}
